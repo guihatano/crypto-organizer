@@ -74,6 +74,6 @@ Three phases that build from the correctness foundation outward. Phase 1 deliver
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Transaction Management + Position Engine | 1/1 | Complete   | 2026-07-09 |
+| 1. Transaction Management + Position Engine | 1/1 | Complete    | 2026-07-09 |
 | 2. Portfolio Dashboard + Market Prices | 0/? | Not started | - |
 | 3. Bens e Direitos Tax Report | 0/? | Not started | - |
