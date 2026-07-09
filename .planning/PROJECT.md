@@ -12,19 +12,18 @@ Saber o preço médio e o custo de aquisição de cada criptomoeda de forma corr
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Registrar manualmente compras de crypto (data, moeda, quantidade, valor em BRL, exchange de origem) — Phase 1
+- [x] Registrar manualmente vendas de crypto (data, moeda, quantidade, valor em BRL, exchange) — Phase 1
+- [x] Calcular preço médio por moeda seguindo as regras brasileiras (venda não altera o preço médio) — Phase 1
+- [x] Ao vender, reduzir a posição e o custo de aquisição total proporcionalmente, preservando o preço médio — Phase 1
+- [x] Mostrar a posição atual (quantidade em carteira) por moeda — Phase 1
+- [x] Identificar de qual exchange cada operação veio ("saber onde comprei") — Phase 1 (exchange tornou-se **opcional**, não obrigatório, por decisão explícita durante a verificação da Fase 1 — uma operação pode ficar sem exchange registrada)
 
 ### Active
 
-- [ ] Registrar manualmente compras de crypto (data, moeda, quantidade, valor em BRL, exchange de origem)
-- [ ] Registrar manualmente vendas de crypto (data, moeda, quantidade, valor em BRL, exchange)
-- [ ] Calcular total investido por moeda e no agregado
-- [ ] Calcular preço médio por moeda seguindo as regras brasileiras (venda não altera o preço médio)
-- [ ] Ao vender, reduzir a posição e o custo de aquisição total proporcionalmente, preservando o preço médio
-- [ ] Mostrar a posição atual (quantidade em carteira) por moeda
-- [ ] Buscar cotação atual das principais moedas (BTC, ETH...) e mostrar valor de mercado + lucro/prejuízo não realizado
-- [ ] Gerar relatório para a ficha de Bens e Direitos: custo de aquisição por moeda para a declaração anual
-- [ ] Identificar de qual exchange cada operação veio ("saber onde comprei")
+- [ ] Calcular total investido no agregado (visão consolidada de portfólio) — Phase 2
+- [ ] Buscar cotação atual das principais moedas (BTC, ETH...) e mostrar valor de mercado + lucro/prejuízo não realizado — Phase 2
+- [ ] Gerar relatório para a ficha de Bens e Direitos: custo de aquisição por moeda para a declaração anual — Phase 3
 
 ### Out of Scope
 
@@ -55,11 +54,12 @@ Saber o preço médio e o custo de aquisição de cada criptomoeda de forma corr
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Entrada manual de operações no v1 | Integração via API/CSV com exchanges é complexa e cada exchange difere; manual entrega valor rápido | — Pending |
-| Foco do IR em Bens e Direitos (não ganho de capital/DARF) | É a dor imediata do usuário na declaração anual; ganho de capital pode vir depois | — Pending |
-| Incluir cotação atual (custo + valor de mercado) | Usuário quer ver quanto vale hoje, além do custo para IR | — Pending |
-| Único usuário, local-first, aberto a hospedar depois | Uso pessoal; simplicidade agora sem fechar portas | — Pending |
-| Escopo inicial nas principais moedas (BTC, ETH...) | Cotação confiável e menor complexidade; altcoins podem entrar depois | — Pending |
+| Entrada manual de operações no v1 | Integração via API/CSV com exchanges é complexa e cada exchange difere; manual entrega valor rápido | Confirmado — Phase 1 (modal de compra/venda) |
+| Foco do IR em Bens e Direitos (não ganho de capital/DARF) | É a dor imediata do usuário na declaração anual; ganho de capital pode vir depois | — Pending (Phase 3) |
+| Incluir cotação atual (custo + valor de mercado) | Usuário quer ver quanto vale hoje, além do custo para IR | — Pending (Phase 2) |
+| Único usuário, local-first, aberto a hospedar depois | Uso pessoal; simplicidade agora sem fechar portas | Confirmado — Phase 1 (SQLite local, sem auth) |
+| Escopo inicial nas principais moedas (BTC, ETH...) | Cotação confiável e menor complexidade; altcoins podem entrar depois | Confirmado — Phase 1 (lista semeada com CoinGecko ID, extensível) |
+| Exchange de origem passa a ser opcional (não obrigatória) | Decisão do usuário durante a verificação da Fase 1: nem toda operação tem exchange conhecida no momento do registro | Confirmado — Phase 1 |
 
 ## Evolution
 
@@ -78,5 +78,9 @@ This document evolves at phase transitions and milestone boundaries.
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
+## Current State
+
+Phase 1 (Transaction Management + Position Engine) complete — 2026-07-09. Users can record buy/sell transactions via modal, see per-coin position (quantidade, preço médio, custo de aquisição) recalculated live from the full ledger on every insert/edit/delete, with chronological non-negative-position validation enforced on all mutation paths. Next: Phase 2 (Portfolio Dashboard + Market Prices).
+
 ---
-*Last updated: 2026-07-03 after initialization*
+*Last updated: 2026-07-09 after Phase 1 completion*
