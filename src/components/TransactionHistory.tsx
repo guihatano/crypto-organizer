@@ -69,13 +69,25 @@ export function TransactionHistory({ transactions, onEdit }: TransactionHistoryP
         <tbody>
           {transactions.map((tx) => (
             <tr key={tx.id} className="border-b border-gray-100 last:border-0">
-              <td className="py-2 pr-4 text-gray-700">{formatDate(tx.date)}</td>
-              <td className="py-2 pr-4 text-gray-700">{TYPE_LABEL[tx.type]}</td>
-              <td className="py-2 pr-4 font-medium text-gray-900">{tx.coin_symbol}</td>
-              <td className="py-2 pr-4 text-gray-700">{formatQuantity(tx.quantity)}</td>
-              <td className="py-2 pr-4 text-gray-700">{formatBRL(tx.value_brl)}</td>
-              <td className="py-2 pr-4 text-gray-700">{formatBRL(tx.fee_brl)}</td>
-              <td className="py-2 pr-4 text-gray-700">{tx.exchange_name}</td>
+              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+                {formatDate(tx.date)}
+              </td>
+              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+                {TYPE_LABEL[tx.type]}
+              </td>
+              <td className="whitespace-nowrap py-2 pr-4 font-medium text-gray-900">
+                {tx.coin_symbol}
+              </td>
+              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+                {formatQuantity(tx.quantity)}
+              </td>
+              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+                {formatBRL(tx.value_brl)}
+              </td>
+              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+                {formatBRL(tx.fee_brl)}
+              </td>
+              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">{tx.exchange_name}</td>
               <td className="py-2 pr-4">
                 <div className="flex gap-2">
                   <button

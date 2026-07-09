@@ -39,8 +39,8 @@ function App() {
 
   return (
     <div className="min-h-svh bg-white">
-      <header className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-semibold text-gray-900">Crypto Organizer</h1>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-4 sm:px-6">
+        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">Crypto Organizer</h1>
         <button
           type="button"
           onClick={openNewTransaction}
@@ -50,7 +50,7 @@ function App() {
         </button>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-8 space-y-10">
+      <main className="mx-auto max-w-5xl space-y-10 px-4 py-6 sm:px-6 sm:py-8">
         {isLoading && <p className="text-sm text-gray-400">Carregando...</p>}
 
         {isError && (

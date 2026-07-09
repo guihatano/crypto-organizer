@@ -32,10 +32,18 @@ export function PositionTable({ positions }: PositionTableProps) {
       <tbody>
         {positions.map((position) => (
           <tr key={position.coin_id} className="border-b border-gray-100 last:border-0">
-            <td className="py-2 pr-4 font-medium text-gray-900">{position.symbol}</td>
-            <td className="py-2 pr-4 text-gray-700">{formatQuantity(position.quantity)}</td>
-            <td className="py-2 pr-4 text-gray-700">{formatBRL(position.preco_medio)}</td>
-            <td className="py-2 pr-4 text-gray-700">{formatBRL(position.custo_total)}</td>
+            <td className="whitespace-nowrap py-2 pr-4 font-medium text-gray-900">
+              {position.symbol}
+            </td>
+            <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+              {formatQuantity(position.quantity)}
+            </td>
+            <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+              {formatBRL(position.preco_medio)}
+            </td>
+            <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+              {formatBRL(position.custo_total)}
+            </td>
           </tr>
         ))}
       </tbody>
