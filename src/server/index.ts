@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { coinsRoute } from './routes/coins.ts'
 import { exchangesRoute } from './routes/exchanges.ts'
 import { positionsRoute } from './routes/positions.ts'
+import { rateRoute } from './routes/rate.ts'
 import { transactionsRoute } from './routes/transactions.ts'
 
 const app = new Hono()
@@ -12,6 +13,7 @@ app.route('/api/coins', coinsRoute)
 app.route('/api/exchanges', exchangesRoute)
 app.route('/api/positions', positionsRoute)
 app.route('/api/transactions', transactionsRoute)
+app.route('/api/rate', rateRoute)
 
 const port = Number(process.env.PORT) || 3000
 

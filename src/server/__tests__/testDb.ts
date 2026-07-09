@@ -84,3 +84,17 @@ export function seedFixture(): SeedFixture {
     exchangeId: Number(exchange.lastInsertRowid),
   }
 }
+
+/**
+ * Seeds a coin with an arbitrary symbol/coingeckoId — used by rate-lookup
+ * tests that need a specific symbol (e.g. USDT -> tether).
+ */
+export function seedCoin(symbol: string, name: string, coingeckoId: string): number {
+  const now = new Date().toISOString()
+  const coin = sqlite
+    .prepare(
+      'INSERT INTO coins (symbol, name, coingecko_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(symbol, name, coingeckoId, now, now)
+  return Number(coin.lastInsertRowid)
+}

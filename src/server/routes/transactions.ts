@@ -3,7 +3,8 @@ import { asc, eq } from 'drizzle-orm'
 import { db } from '../../db/client.ts'
 import { coins, exchanges, transactions } from '../../db/schema.ts'
 import { toDecimal } from '../../lib/decimal.ts'
-import { computeSerializedPositions } from './positions.ts'
+import { validateSellTransaction } from '../../engine/validation.ts'
+import { computeSerializedPositions, loadLedger } from './positions.ts'
 
 export const transactionsRoute = new Hono()
 
@@ -107,6 +108,69 @@ transactionsRoute.post('/buy', async (c) => {
       type: 'buy',
       coinId: coin_id,
       quantity: String(quantity),
+      valueBrl: String(value_brl),
+      feeBrl: String(fee_brl),
+      exchangeId: exchange_id,
+      origin: origin ?? 'manual',
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning()
+    .get()
+
+  return c.json(
+    {
+      transaction: inserted,
+      positions: computeSerializedPositions(),
+    },
+    201,
+  )
+})
+
+transactionsRoute.post('/sell', async (c) => {
+  const body = await c.req.json<BuyBody>().catch(() => null)
+  if (!body) {
+    return c.json({ error: 'Corpo da requisição inválido.' }, 400)
+  }
+
+  const validationError = validateCommonFields(body)
+  if (validationError) {
+    return c.json({ error: validationError }, 400)
+  }
+
+  const { date, coin_id, quantity, value_brl, fee_brl, exchange_id, origin } = body as Required<
+    Omit<BuyBody, 'origin'>
+  > &
+    Pick<BuyBody, 'origin'>
+
+  if (!coinExists(coin_id)) {
+    return c.json({ error: 'Moeda não encontrada.' }, 400)
+  }
+  if (!exchangeExists(exchange_id)) {
+    return c.json({ error: 'Exchange não encontrada.' }, 400)
+  }
+
+  // Authoritative server-side chronological validation BEFORE insert
+  // (D-07/D-08). Client-side warnings are advisory only (T-01-02).
+  const sellValidation = validateSellTransaction(
+    { date, coinId: coin_id, quantity: String(quantity) },
+    loadLedger(),
+  )
+  if (!sellValidation.valid) {
+    return c.json({ error: sellValidation.reason }, 400)
+  }
+
+  const now = new Date().toISOString()
+
+  const inserted = db
+    .insert(transactions)
+    .values({
+      date,
+      type: 'sell',
+      coinId: coin_id,
+      quantity: String(quantity),
+      // value_brl (valor recebido) is inert for Phase 1 math — stored for
+      // a future capital-gains phase.
       valueBrl: String(value_brl),
       feeBrl: String(fee_brl),
       exchangeId: exchange_id,
