@@ -54,3 +54,21 @@ export function useCreateBuy() {
     },
   })
 }
+
+/**
+ * Records a sell. The server re-validates chronologically before insert
+ * (D-07/D-08) — an oversell rejects with a 400 the caller surfaces
+ * inline. Invalidates ['positions'] and ['transactions'] on success.
+ */
+export function useCreateSell() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: CreateTransactionInput) =>
+      apiClient.post<CreateTransactionResponse>('/transactions/sell', input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['positions'] })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+    },
+  })
+}
