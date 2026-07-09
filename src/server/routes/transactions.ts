@@ -190,6 +190,98 @@ transactionsRoute.post('/sell', async (c) => {
   )
 })
 
+transactionsRoute.patch('/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) {
+    return c.json({ error: 'Id inválido.' }, 400)
+  }
+
+  const existingRow = db.select().from(transactions).where(eq(transactions.id, id)).get()
+  if (!existingRow) {
+    return c.json({ error: 'Transação não encontrada.' }, 404)
+  }
+
+  const body = await c.req.json<BuyBody>().catch(() => null)
+  if (!body) {
+    return c.json({ error: 'Corpo da requisição inválido.' }, 400)
+  }
+
+  const validationError = validateCommonFields(body)
+  if (validationError) {
+    return c.json({ error: validationError }, 400)
+  }
+
+  const { date, coin_id, quantity, value_brl, fee_brl, exchange_id, origin } = body as Required<
+    Omit<BuyBody, 'origin'>
+  > &
+    Pick<BuyBody, 'origin'>
+
+  if (!coinExists(coin_id)) {
+    return c.json({ error: 'Moeda não encontrada.' }, 400)
+  }
+  if (!exchangeExists(exchange_id)) {
+    return c.json({ error: 'Exchange não encontrada.' }, 400)
+  }
+
+  // Re-validate chronologically if the edited row is a sell (D-12). The
+  // ledger loaded here still contains the OLD version of this row;
+  // validateSellTransaction excludes it by id before replaying.
+  if (existingRow.type === 'sell') {
+    const sellValidation = validateSellTransaction(
+      { id, date, coinId: coin_id, quantity: String(quantity) },
+      loadLedger(),
+    )
+    if (!sellValidation.valid) {
+      return c.json({ error: sellValidation.reason }, 400)
+    }
+  }
+
+  const now = new Date().toISOString()
+
+  const updated = db
+    .update(transactions)
+    .set({
+      date,
+      coinId: coin_id,
+      quantity: String(quantity),
+      valueBrl: String(value_brl),
+      feeBrl: String(fee_brl),
+      exchangeId: exchange_id,
+      origin: origin ?? existingRow.origin,
+      updatedAt: now,
+    })
+    .where(eq(transactions.id, id))
+    .returning()
+    .get()
+
+  return c.json({
+    transaction: updated,
+    // All positions come from calculatePositions() over the current
+    // ledger — never a stored/cached column (TX-04, D-12).
+    positions: computeSerializedPositions(),
+  })
+})
+
+transactionsRoute.delete('/:id', (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) {
+    return c.json({ error: 'Id inválido.' }, 400)
+  }
+
+  const existingRow = db.select().from(transactions).where(eq(transactions.id, id)).get()
+  if (!existingRow) {
+    return c.json({ error: 'Transação não encontrada.' }, 404)
+  }
+
+  db.delete(transactions).where(eq(transactions.id, id)).run()
+
+  return c.json({
+    // Recomputed from the ledger with the row gone — if that was the
+    // coin's last transaction, its position row disappears (TX-05, D-12).
+    positions: computeSerializedPositions(),
+  })
+})
+
 transactionsRoute.get('/', (c) => {
   const rows = db
     .select({

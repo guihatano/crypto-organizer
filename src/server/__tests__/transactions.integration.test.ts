@@ -35,6 +35,38 @@ async function getRate(from: string, date: string) {
   return { status: res.status, json: await res.json() }
 }
 
+async function patchTransaction(id: number, body: Record<string, unknown>) {
+  const res = await app.request(`/api/transactions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { status: res.status, json: await res.json() }
+}
+
+async function deleteTransaction(id: number) {
+  const res = await app.request(`/api/transactions/${id}`, { method: 'DELETE' })
+  return { status: res.status, json: await res.json() }
+}
+
+async function postCoin(body: Record<string, unknown>) {
+  const res = await app.request('/api/coins', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { status: res.status, json: await res.json() }
+}
+
+async function postExchange(body: Record<string, unknown>) {
+  const res = await app.request('/api/exchanges', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { status: res.status, json: await res.json() }
+}
+
 describe('POST /api/transactions/buy', () => {
   beforeEach(() => {
     resetTestDb()
@@ -353,5 +385,151 @@ describe('GET /api/rate', () => {
     expect(status).toBe(200)
     expect(json.source).toBe('unavailable')
     expect(json.rate).toBeNull()
+  })
+})
+
+describe('PATCH /api/transactions/:id and DELETE /api/transactions/:id', () => {
+  beforeEach(() => {
+    resetTestDb()
+  })
+
+  it('edits a buy quantity and recomputes positions from the full ledger (TX-04, D-12)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+
+    const { json: buyResult } = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: exchangeId,
+    })
+    const txId = buyResult.transaction.id
+
+    const { status, json } = await patchTransaction(txId, {
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '2',
+      value_brl: '200000',
+      fee_brl: '1000',
+      exchange_id: exchangeId,
+    })
+
+    expect(status).toBe(200)
+    expect(json.positions[0]).toMatchObject({
+      quantity: '2',
+      custo_total: '201000',
+      preco_medio: '100500',
+    })
+  })
+
+  it('deletes the Wave-2 sell and the position reverts to the pre-sell state (TX-05, D-12)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+
+    await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: exchangeId,
+    })
+    await postBuy({
+      date: '2026-07-02',
+      coin_id: coinId,
+      quantity: '0.5',
+      value_brl: '60000',
+      fee_brl: '300',
+      exchange_id: exchangeId,
+    })
+    const { json: sellResult } = await postSell({
+      date: '2026-07-03',
+      coin_id: coinId,
+      quantity: '0.5',
+      value_brl: '0',
+      fee_brl: '0',
+      exchange_id: exchangeId,
+    })
+    const sellId = sellResult.transaction.id
+
+    // Sanity: sell applied.
+    expect(sellResult.positions[0]).toMatchObject({ quantity: '1' })
+
+    const { status, json } = await deleteTransaction(sellId)
+
+    expect(status).toBe(200)
+    expect(json.positions[0]).toMatchObject({
+      quantity: '1.5',
+      custo_total: '160800',
+      preco_medio: '107200',
+    })
+  })
+
+  it("deleting a coin's only transaction makes its position row disappear (TX-05)", async () => {
+    const { coinId, exchangeId } = seedFixture()
+
+    const { json: buyResult } = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: exchangeId,
+    })
+
+    const { status, json } = await deleteTransaction(buyResult.transaction.id)
+
+    expect(status).toBe(200)
+    expect(json.positions).toEqual([])
+  })
+
+  it('PATCH returns 404 for a non-existent transaction', async () => {
+    const { coinId, exchangeId } = seedFixture()
+
+    const { status } = await patchTransaction(999999, {
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: exchangeId,
+    })
+
+    expect(status).toBe(404)
+  })
+
+  it('DELETE returns 404 for a non-existent transaction', async () => {
+    const { status } = await deleteTransaction(999999)
+    expect(status).toBe(404)
+  })
+})
+
+describe('POST /api/coins and POST /api/exchanges', () => {
+  beforeEach(() => {
+    resetTestDb()
+  })
+
+  it('adds a user coin and rejects a duplicate symbol with 400 (D-02)', async () => {
+    const first = await postCoin({ symbol: 'ada', name: 'Cardano', coingecko_id: 'cardano' })
+    expect(first.status).toBe(201)
+    expect(first.json).toMatchObject({ symbol: 'ADA', coingecko_id: 'cardano' })
+
+    const duplicate = await postCoin({
+      symbol: 'ADA',
+      name: 'Cardano (dup)',
+      coingecko_id: 'cardano',
+    })
+    expect(duplicate.status).toBe(400)
+    expect(duplicate.json.error).toBeTruthy()
+  })
+
+  it('adds a user exchange and rejects a duplicate name with 400 (D-11)', async () => {
+    const first = await postExchange({ name: 'OKX' })
+    expect(first.status).toBe(201)
+    expect(first.json).toMatchObject({ name: 'OKX' })
+
+    const duplicate = await postExchange({ name: 'OKX' })
+    expect(duplicate.status).toBe(400)
+    expect(duplicate.json.error).toBeTruthy()
   })
 })
