@@ -5,7 +5,7 @@ const brlFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 })
 
-const quantityFormatter = new Intl.NumberFormat('pt-BR', {
+const ptBRAmountFormatter = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 8,
 })
@@ -30,13 +30,28 @@ export function formatBRL(value: Decimal | string | number): string {
 }
 
 /**
- * Formats a Decimal crypto quantity with pt-BR comma-decimal separator,
- * keeping up to 8 decimal places (e.g. 0.00314159 BTC), trimming trailing
- * zeros for round numbers.
+ * Formats a Decimal crypto quantity in the standard international format:
+ * a dot decimal separator, exactly 8 decimal places, no thousands
+ * separator and no locale (e.g. 1 -> '1.00000000', Decimal('0.00314159')
+ * -> '0.00314159'). This is DELIBERATELY not pt-BR formatted — crypto
+ * quantities are conventionally shown dot-decimal regardless of locale,
+ * unlike BRL monetary amounts (formatBRL) which stay pt-BR. Uses
+ * Decimal.js#toFixed directly (no native Number round-trip) so precision
+ * is never at risk.
  */
 export function formatQuantity(value: Decimal | string | number): string {
+  return toDecimal(value).toFixed(8)
+}
+
+/**
+ * Formats a Decimal amount in pt-BR style (thousands '.', decimal ',')
+ * WITHOUT a currency symbol — used to prefill editable BRL-value text
+ * inputs (e.g. taxa, valor recebido) so parseBRLInput can read the
+ * result back correctly.
+ */
+export function formatAmountPtBR(value: Decimal | string | number): string {
   const decimal = toDecimal(value)
-  return quantityFormatter.format(Number(decimal.toFixed(8)))
+  return ptBRAmountFormatter.format(Number(decimal.toFixed(8)))
 }
 
 /**
@@ -50,10 +65,21 @@ export function parseBRLInput(value: string): Decimal {
 }
 
 /**
- * Parses a pt-BR formatted quantity string into a Decimal, e.g.
- * '0,00314159' -> Decimal 0.00314159.
+ * Parses a quantity string into a Decimal. Lenient about the decimal
+ * separator so it can round-trip values produced by BOTH formatQuantity
+ * (dot-decimal, e.g. '1.00000000') and pt-BR manual typing (comma-
+ * decimal, e.g. '0,00314159'):
+ *  - contains a comma -> pt-BR style: '.' stripped as thousands
+ *    separator, ',' converted to the decimal point.
+ *  - no comma -> treated as already dot-decimal (international format),
+ *    parsed as-is.
  */
 export function parseQuantityInput(value: string): Decimal {
-  const normalized = value.trim().replace(/\./g, '').replace(',', '.')
-  return new Decimal(normalized === '' ? 0 : normalized)
+  const trimmed = value.trim()
+  if (trimmed === '') return new Decimal(0)
+  if (trimmed.includes(',')) {
+    const normalized = trimmed.replace(/\./g, '').replace(',', '.')
+    return new Decimal(normalized)
+  }
+  return new Decimal(trimmed)
 }

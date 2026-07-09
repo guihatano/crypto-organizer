@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../api/client.ts'
 import { Decimal } from '../lib/decimal.ts'
-import { formatBRL, formatQuantity, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
+import { formatAmountPtBR, formatBRL, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
 
 interface RateResponse {
   rate: number | null
@@ -45,7 +45,7 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
   const [currency, setCurrency] = useState<'BRL' | 'USDT'>('BRL')
   const [usdtAmount, setUsdtAmount] = useState('')
   const [brlDisplay, setBrlDisplay] = useState(() =>
-    initialBrl ? formatQuantity(initialBrl) : '',
+    initialBrl ? formatAmountPtBR(initialBrl) : '',
   )
 
   // Sync the initial value up to the parent once on mount (edit mode).
@@ -66,23 +66,6 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
     staleTime: 60_000,
   })
 
-  // Auto-compute the BRL display value from USDT amount * rate whenever
-  // either changes. The user can still freely overwrite brlDisplay
-  // afterward — that edit simply isn't overwritten again until usdtAmount
-  // or the rate change once more.
-  useEffect(() => {
-    if (currency !== 'USDT') return
-    if (!usdtAmount.trim() || rateData?.rate == null) return
-    try {
-      const usdt = parseQuantityInput(usdtAmount)
-      const computed = usdt.times(new Decimal(rateData.rate))
-      setBrlDisplay(computed.toFixed(2).replace('.', ','))
-    } catch {
-      // Invalid intermediate input while typing — ignore, keep the last
-      // valid BRL value so the field is never blocked.
-    }
-  }, [usdtAmount, rateData?.rate, currency])
-
   function emitBrl(display: string) {
     setBrlDisplay(display)
     try {
@@ -93,6 +76,28 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
       // this field parses cleanly.
     }
   }
+
+  // Auto-compute the BRL value from USDT amount * rate whenever either
+  // changes, and PROPAGATE it to the parent via emitBrl (not just local
+  // display state) — otherwise the parent's value_brl stays empty and
+  // submission is blocked by the required-field check even though the
+  // field visually shows a computed number. The user can still freely
+  // overwrite the field afterward via onChange -> emitBrl; that edit
+  // simply isn't overwritten again until usdtAmount or the rate change
+  // once more (D-06 manual override).
+  useEffect(() => {
+    if (currency !== 'USDT') return
+    if (!usdtAmount.trim() || rateData?.rate == null) return
+    try {
+      const usdt = parseQuantityInput(usdtAmount)
+      const computed = usdt.times(new Decimal(rateData.rate))
+      emitBrl(computed.toFixed(2).replace('.', ','))
+    } catch {
+      // Invalid intermediate input while typing — ignore, keep the last
+      // valid BRL value so the field is never blocked.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usdtAmount, rateData?.rate, currency])
 
   return (
     <div>

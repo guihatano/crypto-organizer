@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, type TransactionListItem } from '../api/client.ts'
-import { formatQuantity, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
+import { formatAmountPtBR, formatQuantity, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
 import { useCreateBuy, useCreateSell, useUpdateTransaction } from '../hooks/useTransactions.ts'
 import { CoinDropdown } from './CoinDropdown.tsx'
 import { ExchangeDropdown } from './ExchangeDropdown.tsx'
@@ -55,14 +55,19 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
       setMode(editingTransaction.type)
       setDate(editingTransaction.date)
       setCoinId(editingTransaction.coin_id)
+      // Quantity is a crypto amount — prefill in the same dot+8dp
+      // international format it's displayed in (parseQuantityInput is
+      // lenient and reads this back correctly). Fee/received are BRL
+      // money values — prefill pt-BR comma-decimal so parseBRLInput can
+      // read them back.
       setQuantity(formatQuantity(editingTransaction.quantity))
-      setFeeBrl(formatQuantity(editingTransaction.fee_brl))
+      setFeeBrl(formatAmountPtBR(editingTransaction.fee_brl))
       setExchangeId(editingTransaction.exchange_id)
       if (editingTransaction.type === 'buy') {
         setValueBrl(editingTransaction.value_brl)
         setReceivedBrl('')
       } else {
-        setReceivedBrl(formatQuantity(editingTransaction.value_brl))
+        setReceivedBrl(formatAmountPtBR(editingTransaction.value_brl))
         setValueBrl('')
       }
     } else {
