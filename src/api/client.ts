@@ -63,8 +63,10 @@ export interface TransactionListItem {
   quantity: string
   value_brl: string
   fee_brl: string
-  exchange_id: number
-  exchange_name: string
+  // Exchange is optional (product decision) — a transaction can be
+  // recorded without one.
+  exchange_id: number | null
+  exchange_name: string | null
   origin: string
   created_at: string
 }
@@ -75,7 +77,7 @@ export interface CreateTransactionInput {
   quantity: string
   value_brl: string
   fee_brl: string
-  exchange_id: number
+  exchange_id?: number | null
   origin?: string
 }
 

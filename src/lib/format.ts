@@ -5,9 +5,11 @@ const brlFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 })
 
-const ptBRAmountFormatter = new Intl.NumberFormat('pt-BR', {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 8,
+// Money fields (BRL) always show exactly 2 decimal places, pt-BR style
+// (thousands '.', decimal ','), unlike crypto quantities.
+const moneyPtBRFormatter = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 })
 
 // Intl.NumberFormat('pt-BR', { style: 'currency', ... }) inserts a
@@ -44,14 +46,35 @@ export function formatQuantity(value: Decimal | string | number): string {
 }
 
 /**
- * Formats a Decimal amount in pt-BR style (thousands '.', decimal ',')
- * WITHOUT a currency symbol — used to prefill editable BRL-value text
- * inputs (e.g. taxa, valor recebido) so parseBRLInput can read the
- * result back correctly.
+ * Formats a Decimal money amount in pt-BR style (thousands '.', decimal
+ * ',') WITHOUT a currency symbol, always exactly 2 decimal places — used
+ * to prefill/display editable BRL-value text inputs (e.g. valor total,
+ * taxa, valor recebido) so parseBRLInput can read the result back
+ * correctly.
  */
-export function formatAmountPtBR(value: Decimal | string | number): string {
+export function formatMoneyPtBR(value: Decimal | string | number): string {
   const decimal = toDecimal(value)
-  return ptBRAmountFormatter.format(Number(decimal.toFixed(8)))
+  return moneyPtBRFormatter.format(Number(decimal.toFixed(2)))
+}
+
+/**
+ * Live money-mask helper for text inputs: given the CURRENT full input
+ * string (after the user's latest keystroke — insertion or deletion),
+ * extracts all digits and treats the last two as centavos (the
+ * conventional "money mask" UX, e.g. typing 1 -> R$0,01, 12 -> R$0,12,
+ * 100050000 -> R$1.000.500,00). Re-derives from the full string every
+ * call (not incremental), so both typing and deleting digits behave
+ * correctly. Returns both the pt-BR display string (feed back into the
+ * input's `value`) and the normalized plain-decimal string (ready to
+ * send to the API, or store as component state to hand off later).
+ */
+export function maskMoneyInput(raw: string): { display: string; normalized: string } {
+  const digitsOnly = raw.replace(/\D/g, '')
+  if (digitsOnly === '') {
+    return { display: '', normalized: '0' }
+  }
+  const decimal = new Decimal(digitsOnly).div(100)
+  return { display: formatMoneyPtBR(decimal), normalized: decimal.toString() }
 }
 
 /**

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { Decimal } from '../decimal.ts'
-import { formatBRL, formatQuantity, parseBRLInput, parseQuantityInput } from '../format.ts'
+import {
+  formatBRL,
+  formatMoneyPtBR,
+  formatQuantity,
+  maskMoneyInput,
+  parseBRLInput,
+  parseQuantityInput,
+} from '../format.ts'
 
 describe('formatBRL', () => {
   it("formats Decimal('1234.56') as 'R$ 1.234,56'", () => {
@@ -16,6 +23,37 @@ describe('formatQuantity', () => {
   it('always shows exactly 8 decimal places, even for whole numbers', () => {
     expect(formatQuantity('1')).toBe('1.00000000')
     expect(formatQuantity(new Decimal('0.5'))).toBe('0.50000000')
+  })
+})
+
+describe('formatMoneyPtBR', () => {
+  it('formats a money amount pt-BR style without a currency symbol, always 2 decimals', () => {
+    expect(formatMoneyPtBR(new Decimal('100500'))).toBe('100.500,00')
+    expect(formatMoneyPtBR('500')).toBe('500,00')
+  })
+})
+
+describe('maskMoneyInput', () => {
+  it('treats digits as centavos, growing the display as more are typed', () => {
+    expect(maskMoneyInput('1').display).toBe('0,01')
+    expect(maskMoneyInput('12').display).toBe('0,12')
+    expect(maskMoneyInput('123').display).toBe('1,23')
+    expect(maskMoneyInput('10050000').display).toBe('100.500,00')
+  })
+
+  it('returns a normalized plain-decimal string alongside the display', () => {
+    expect(maskMoneyInput('10050000').normalized).toBe('100500')
+  })
+
+  it('ignores non-digit characters already present in the input (re-derives from full string)', () => {
+    // Simulates re-reading the input's current value, which already
+    // contains the previous mask's punctuation ('.', ',').
+    expect(maskMoneyInput('1.000,50').display).toBe('1.000,50')
+  })
+
+  it('returns an empty display for an empty/all-non-digit input', () => {
+    expect(maskMoneyInput('').display).toBe('')
+    expect(maskMoneyInput('').normalized).toBe('0')
   })
 })
 

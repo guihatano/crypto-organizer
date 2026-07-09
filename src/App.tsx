@@ -44,7 +44,7 @@ function App() {
         <button
           type="button"
           onClick={openNewTransaction}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+          className="cursor-pointer rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
         >
           Nova transação
         </button>

@@ -51,7 +51,7 @@ export function DeleteConfirmDialog({
         <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+            className="cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
             onClick={onCancel}
           >
             Cancelar
@@ -59,7 +59,7 @@ export function DeleteConfirmDialog({
           <button
             type="button"
             disabled={isPending}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            className="cursor-pointer rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onConfirm}
           >
             {isPending ? 'Excluindo...' : 'Excluir'}

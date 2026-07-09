@@ -47,9 +47,10 @@ export const transactions = sqliteTable(
     quantity: text('quantity').notNull(),
     valueBrl: text('value_brl').notNull(),
     feeBrl: text('fee_brl').notNull(),
-    exchangeId: integer('exchange_id')
-      .notNull()
-      .references(() => exchanges.id),
+    // Nullable: exchange is optional (product decision, relaxing the
+    // original TX-07/D-11 "every entry has an exchange" framing) — a
+    // transaction can be recorded without knowing/choosing its exchange.
+    exchangeId: integer('exchange_id').references(() => exchanges.id),
     origin: text('origin').notNull().default('manual'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),

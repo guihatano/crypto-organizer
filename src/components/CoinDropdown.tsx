@@ -100,7 +100,7 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
                   type="button"
                   role="option"
                   aria-selected={coin.id === value}
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                  className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-gray-100"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     onChange(coin.id)
@@ -119,7 +119,7 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
             {!addingNew ? (
               <button
                 type="button"
-                className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100"
+                className="w-full cursor-pointer rounded-md px-2 py-1.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setAddingNew(true)}
               >
@@ -152,7 +152,7 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
-                    className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                    className="cursor-pointer rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
                     onClick={resetAddForm}
                   >
                     Cancelar
@@ -160,7 +160,7 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
                   <button
                     type="button"
                     disabled={createCoin.isPending}
-                    className="rounded-md bg-gray-900 px-2 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-50"
+                    className="cursor-pointer rounded-md bg-gray-900 px-2 py-1 text-xs text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={handleCreateCoin}
                   >
                     {createCoin.isPending ? 'Salvando...' : 'Salvar'}

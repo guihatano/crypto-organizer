@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   quantity text NOT NULL,
   value_brl text NOT NULL,
   fee_brl text NOT NULL,
-  exchange_id integer NOT NULL,
+  exchange_id integer,
   origin text DEFAULT 'manual' NOT NULL,
   created_at text NOT NULL,
   updated_at text NOT NULL,

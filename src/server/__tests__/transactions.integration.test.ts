@@ -165,6 +165,54 @@ describe('POST /api/transactions/buy', () => {
     expect(json.error).toBeTruthy()
     expect(json.stack).toBeUndefined()
   })
+
+  it('accepts a buy with no exchange_id at all — exchange is optional', async () => {
+    const { coinId } = seedFixture()
+
+    const { status, json } = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      // exchange_id omitted entirely
+    })
+
+    expect(status).toBe(201)
+    expect(json.transaction.exchangeId).toBeNull()
+  })
+
+  it('accepts a buy with exchange_id explicitly null', async () => {
+    const { coinId } = seedFixture()
+
+    const { status, json } = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: null,
+    })
+
+    expect(status).toBe(201)
+    expect(json.transaction.exchangeId).toBeNull()
+  })
+
+  it('still rejects a buy referencing a non-existent exchange_id (400)', async () => {
+    const { coinId } = seedFixture()
+
+    const { status, json } = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: 999999,
+    })
+
+    expect(status).toBe(400)
+    expect(json.error).toBeTruthy()
+  })
 })
 
 describe('GET /api/positions', () => {
@@ -238,6 +286,26 @@ describe('GET /api/transactions', () => {
     expect(json[1].date).toBe('2026-07-02')
     expect(json[0].exchange_name).toBe('Manual')
     expect(json[0].coin_symbol).toBe('BTC')
+  })
+
+  it('returns a transaction with no exchange (exchange_name null) instead of dropping it (LEFT JOIN)', async () => {
+    const { coinId } = seedFixture()
+
+    await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      // no exchange_id
+    })
+
+    const { status, json } = await getTransactions()
+
+    expect(status).toBe(200)
+    expect(json).toHaveLength(1)
+    expect(json[0].exchange_id).toBeNull()
+    expect(json[0].exchange_name).toBeNull()
   })
 })
 

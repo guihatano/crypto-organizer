@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, type TransactionListItem } from '../api/client.ts'
-import { formatAmountPtBR, formatQuantity, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
+import {
+  formatMoneyPtBR,
+  formatQuantity,
+  maskMoneyInput,
+  parseBRLInput,
+  parseQuantityInput,
+} from '../lib/format.ts'
 import { useCreateBuy, useCreateSell, useUpdateTransaction } from '../hooks/useTransactions.ts'
 import { CoinDropdown } from './CoinDropdown.tsx'
 import { ExchangeDropdown } from './ExchangeDropdown.tsx'
@@ -28,7 +34,8 @@ const MODE_LABEL: Record<Mode, string> = { buy: 'Compra', sell: 'Venda' }
  * future capital-gains phase. When `editingTransaction` is set, the form
  * is prefilled and submits via PATCH instead of POST (TX-04) — the
  * buy/sell type cannot be changed on an existing transaction, so the
- * toggle is replaced by a static label.
+ * toggle is replaced by a static label. Exchange is optional (product
+ * decision) — the form never blocks submission on it.
  */
 export function TransactionForm({ open, onClose, editingTransaction }: TransactionFormProps) {
   const [mode, setMode] = useState<Mode>('buy')
@@ -61,13 +68,13 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
       // money values — prefill pt-BR comma-decimal so parseBRLInput can
       // read them back.
       setQuantity(formatQuantity(editingTransaction.quantity))
-      setFeeBrl(formatAmountPtBR(editingTransaction.fee_brl))
+      setFeeBrl(formatMoneyPtBR(editingTransaction.fee_brl))
       setExchangeId(editingTransaction.exchange_id)
       if (editingTransaction.type === 'buy') {
         setValueBrl(editingTransaction.value_brl)
         setReceivedBrl('')
       } else {
-        setReceivedBrl(formatAmountPtBR(editingTransaction.value_brl))
+        setReceivedBrl(formatMoneyPtBR(editingTransaction.value_brl))
         setValueBrl('')
       }
     } else {
@@ -96,16 +103,23 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
 
   if (!open) return null
 
+  // Live money-mask handlers (Taxa / Valor recebido) — re-derive the
+  // pt-BR display from the input's full current string on every
+  // keystroke, same technique CurrencyInput uses for Valor total.
+  function handleFeeChange(raw: string) {
+    setFeeBrl(maskMoneyInput(raw).display)
+  }
+
+  function handleReceivedChange(raw: string) {
+    setReceivedBrl(maskMoneyInput(raw).display)
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
     if (!coinId) {
       setError('Selecione a moeda.')
-      return
-    }
-    if (!exchangeId) {
-      setError('Selecione a exchange.')
       return
     }
     if (!quantity.trim()) {
@@ -130,6 +144,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
       quantity: quantityDecimal.toString(),
       value_brl: valueForApi,
       fee_brl: feeDecimal.toString(),
+      // Exchange is optional — null means "not set" (relaxed TX-07/D-11).
       exchange_id: exchangeId,
     }
 
@@ -181,7 +196,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               type="button"
               role="tab"
               aria-selected={mode === 'buy'}
-              className={`px-4 py-1.5 ${mode === 'buy' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+              className={`cursor-pointer px-4 py-1.5 ${mode === 'buy' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
               onClick={() => setMode('buy')}
             >
               Compra
@@ -190,7 +205,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               type="button"
               role="tab"
               aria-selected={mode === 'sell'}
-              className={`px-4 py-1.5 ${mode === 'sell' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+              className={`cursor-pointer px-4 py-1.5 ${mode === 'sell' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
               onClick={() => setMode('sell')}
             >
               Venda
@@ -233,7 +248,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               id="tx-quantity"
               type="text"
               inputMode="decimal"
-              placeholder="0,00000000"
+              placeholder="0.00000000"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
@@ -271,7 +286,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
                   placeholder="0,00"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
                   value={feeBrl}
-                  onChange={(e) => setFeeBrl(e.target.value)}
+                  onChange={(e) => handleFeeChange(e.target.value)}
                 />
               </div>
             </div>
@@ -291,7 +306,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
                   placeholder="0,00"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
                   value={receivedBrl}
-                  onChange={(e) => setReceivedBrl(e.target.value)}
+                  onChange={(e) => handleReceivedChange(e.target.value)}
                 />
                 <p className="mt-1 text-xs text-gray-400">
                   Guardado para uma futura declaração de ganho de capital — não
@@ -312,7 +327,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
                   placeholder="0,00"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
                   value={feeBrl}
-                  onChange={(e) => setFeeBrl(e.target.value)}
+                  onChange={(e) => handleFeeChange(e.target.value)}
                 />
               </div>
             </div>
@@ -323,7 +338,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               htmlFor="tx-exchange"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              Exchange
+              Exchange (opcional)
             </label>
             <ExchangeDropdown id="tx-exchange" value={exchangeId} onChange={setExchangeId} />
           </div>
@@ -331,7 +346,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              className="rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              className="cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
               onClick={onClose}
             >
               Cancelar
@@ -339,7 +354,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
             <button
               type="submit"
               disabled={isPending}
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+              className="cursor-pointer rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPending ? 'Salvando...' : 'Salvar'}
             </button>

@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../api/client.ts'
 import { Decimal } from '../lib/decimal.ts'
-import { formatAmountPtBR, formatBRL, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
+import {
+  formatBRL,
+  formatMoneyPtBR,
+  maskMoneyInput,
+  parseBRLInput,
+  parseQuantityInput,
+} from '../lib/format.ts'
 
 interface RateResponse {
   rate: number | null
@@ -45,7 +51,7 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
   const [currency, setCurrency] = useState<'BRL' | 'USDT'>('BRL')
   const [usdtAmount, setUsdtAmount] = useState('')
   const [brlDisplay, setBrlDisplay] = useState(() =>
-    initialBrl ? formatAmountPtBR(initialBrl) : '',
+    initialBrl ? formatMoneyPtBR(initialBrl) : '',
   )
 
   // Sync the initial value up to the parent once on mount (edit mode).
@@ -77,6 +83,19 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
     }
   }
 
+  /**
+   * Live money-mask handler for user keystrokes: re-derives the pt-BR
+   * display + normalized value from the input's full current string on
+   * every change (see maskMoneyInput), so the field always shows
+   * '100.500,00'-style formatting as the user types digits — not a
+   * plain unformatted number.
+   */
+  function handleTypedInput(raw: string) {
+    const { display, normalized } = maskMoneyInput(raw)
+    setBrlDisplay(display)
+    onChangeBrl(normalized)
+  }
+
   // Auto-compute the BRL value from USDT amount * rate whenever either
   // changes, and PROPAGATE it to the parent via emitBrl (not just local
   // display state) — otherwise the parent's value_brl stays empty and
@@ -104,14 +123,14 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
       <div className="mb-2 inline-flex rounded-md border border-gray-300 text-xs">
         <button
           type="button"
-          className={`px-3 py-1 ${currency === 'BRL' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+          className={`cursor-pointer px-3 py-1 ${currency === 'BRL' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
           onClick={() => setCurrency('BRL')}
         >
           BRL
         </button>
         <button
           type="button"
-          className={`px-3 py-1 ${currency === 'USDT' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+          className={`cursor-pointer px-3 py-1 ${currency === 'USDT' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
           onClick={() => setCurrency('USDT')}
         >
           USDT
@@ -156,7 +175,7 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
         placeholder="0,00"
         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
         value={brlDisplay}
-        onChange={(e) => emitBrl(e.target.value)}
+        onChange={(e) => handleTypedInput(e.target.value)}
         required
       />
     </div>

@@ -87,19 +87,21 @@ export function TransactionHistory({ transactions, onEdit }: TransactionHistoryP
               <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
                 {formatBRL(tx.fee_brl)}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">{tx.exchange_name}</td>
+              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+                {tx.exchange_name ?? '—'}
+              </td>
               <td className="py-2 pr-4">
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    className="text-xs font-medium text-gray-600 hover:text-gray-900 hover:underline"
+                    className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900 hover:underline"
                     onClick={() => onEdit(tx)}
                   >
                     Editar
                   </button>
                   <button
                     type="button"
-                    className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
+                    className="cursor-pointer text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
                     onClick={() => setPendingDeleteId(tx.id)}
                   >
                     Excluir

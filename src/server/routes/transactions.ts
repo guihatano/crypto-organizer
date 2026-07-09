@@ -18,7 +18,9 @@ interface BuyBody {
   quantity?: string
   value_brl?: string
   fee_brl?: string
-  exchange_id?: number
+  // Optional (product decision): a transaction can be recorded without
+  // an exchange. `null`/undefined/omitted all mean "not set".
+  exchange_id?: number | null
   origin?: string
 }
 
@@ -26,19 +28,13 @@ interface BuyBody {
  * Validates the common fields shared by buy/sell payloads. Returns an
  * error message string, or null when valid. Never leaks internal state —
  * messages are safe, user-facing pt-BR strings (Security V7 / T-01-04).
+ * exchange_id is intentionally NOT required here.
  */
 function validateCommonFields(body: BuyBody): string | null {
-  const { date, coin_id, quantity, value_brl, fee_brl, exchange_id } = body
+  const { date, coin_id, quantity, value_brl, fee_brl } = body
 
-  if (
-    !date ||
-    coin_id == null ||
-    !quantity ||
-    value_brl == null ||
-    fee_brl == null ||
-    exchange_id == null
-  ) {
-    return 'Campos obrigatórios ausentes: date, coin_id, quantity, value_brl, fee_brl, exchange_id.'
+  if (!date || coin_id == null || !quantity || value_brl == null || fee_brl == null) {
+    return 'Campos obrigatórios ausentes: date, coin_id, quantity, value_brl, fee_brl.'
   }
 
   if (date > todayIso()) {
@@ -76,6 +72,24 @@ function exchangeExists(exchangeId: number): boolean {
   )
 }
 
+/**
+ * Normalizes an incoming exchange_id: null/undefined/0 all mean "not
+ * set" -> null. Returns an error message if a non-null id was provided
+ * but doesn't exist.
+ */
+function resolveExchangeId(exchangeId: number | null | undefined): {
+  value: number | null
+  error: string | null
+} {
+  if (exchangeId == null) {
+    return { value: null, error: null }
+  }
+  if (!exchangeExists(exchangeId)) {
+    return { value: null, error: 'Exchange não encontrada.' }
+  }
+  return { value: exchangeId, error: null }
+}
+
 transactionsRoute.post('/buy', async (c) => {
   const body = await c.req.json<BuyBody>().catch(() => null)
   if (!body) {
@@ -87,16 +101,18 @@ transactionsRoute.post('/buy', async (c) => {
     return c.json({ error: validationError }, 400)
   }
 
-  const { date, coin_id, quantity, value_brl, fee_brl, exchange_id, origin } = body as Required<
-    Omit<BuyBody, 'origin'>
+  const { date, coin_id, quantity, value_brl, fee_brl, origin } = body as Required<
+    Omit<BuyBody, 'origin' | 'exchange_id'>
   > &
-    Pick<BuyBody, 'origin'>
+    Pick<BuyBody, 'origin' | 'exchange_id'>
 
   if (!coinExists(coin_id)) {
     return c.json({ error: 'Moeda não encontrada.' }, 400)
   }
-  if (!exchangeExists(exchange_id)) {
-    return c.json({ error: 'Exchange não encontrada.' }, 400)
+
+  const { value: exchangeId, error: exchangeError } = resolveExchangeId(body.exchange_id)
+  if (exchangeError) {
+    return c.json({ error: exchangeError }, 400)
   }
 
   const now = new Date().toISOString()
@@ -110,7 +126,7 @@ transactionsRoute.post('/buy', async (c) => {
       quantity: String(quantity),
       valueBrl: String(value_brl),
       feeBrl: String(fee_brl),
-      exchangeId: exchange_id,
+      exchangeId,
       origin: origin ?? 'manual',
       createdAt: now,
       updatedAt: now,
@@ -138,16 +154,18 @@ transactionsRoute.post('/sell', async (c) => {
     return c.json({ error: validationError }, 400)
   }
 
-  const { date, coin_id, quantity, value_brl, fee_brl, exchange_id, origin } = body as Required<
-    Omit<BuyBody, 'origin'>
+  const { date, coin_id, quantity, value_brl, fee_brl, origin } = body as Required<
+    Omit<BuyBody, 'origin' | 'exchange_id'>
   > &
-    Pick<BuyBody, 'origin'>
+    Pick<BuyBody, 'origin' | 'exchange_id'>
 
   if (!coinExists(coin_id)) {
     return c.json({ error: 'Moeda não encontrada.' }, 400)
   }
-  if (!exchangeExists(exchange_id)) {
-    return c.json({ error: 'Exchange não encontrada.' }, 400)
+
+  const { value: exchangeId, error: exchangeError } = resolveExchangeId(body.exchange_id)
+  if (exchangeError) {
+    return c.json({ error: exchangeError }, 400)
   }
 
   // Authoritative server-side chronological validation BEFORE insert
@@ -173,7 +191,7 @@ transactionsRoute.post('/sell', async (c) => {
       // a future capital-gains phase.
       valueBrl: String(value_brl),
       feeBrl: String(fee_brl),
-      exchangeId: exchange_id,
+      exchangeId,
       origin: origin ?? 'manual',
       createdAt: now,
       updatedAt: now,
@@ -211,16 +229,18 @@ transactionsRoute.patch('/:id', async (c) => {
     return c.json({ error: validationError }, 400)
   }
 
-  const { date, coin_id, quantity, value_brl, fee_brl, exchange_id, origin } = body as Required<
-    Omit<BuyBody, 'origin'>
+  const { date, coin_id, quantity, value_brl, fee_brl, origin } = body as Required<
+    Omit<BuyBody, 'origin' | 'exchange_id'>
   > &
-    Pick<BuyBody, 'origin'>
+    Pick<BuyBody, 'origin' | 'exchange_id'>
 
   if (!coinExists(coin_id)) {
     return c.json({ error: 'Moeda não encontrada.' }, 400)
   }
-  if (!exchangeExists(exchange_id)) {
-    return c.json({ error: 'Exchange não encontrada.' }, 400)
+
+  const { value: exchangeId, error: exchangeError } = resolveExchangeId(body.exchange_id)
+  if (exchangeError) {
+    return c.json({ error: exchangeError }, 400)
   }
 
   // Re-validate chronologically if the edited row is a sell (D-12). The
@@ -246,7 +266,7 @@ transactionsRoute.patch('/:id', async (c) => {
       quantity: String(quantity),
       valueBrl: String(value_brl),
       feeBrl: String(fee_brl),
-      exchangeId: exchange_id,
+      exchangeId,
       origin: origin ?? existingRow.origin,
       updatedAt: now,
     })
@@ -301,7 +321,9 @@ transactionsRoute.get('/', (c) => {
     })
     .from(transactions)
     .innerJoin(coins, eq(transactions.coinId, coins.id))
-    .innerJoin(exchanges, eq(transactions.exchangeId, exchanges.id))
+    // LEFT join: exchange is optional, so a transaction without one must
+    // still be returned (exchangeName comes back null).
+    .leftJoin(exchanges, eq(transactions.exchangeId, exchanges.id))
     .orderBy(asc(transactions.date), asc(transactions.createdAt))
     .all()
 

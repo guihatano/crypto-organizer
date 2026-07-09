@@ -5,13 +5,15 @@ import { useCreateExchange, useExchanges } from '../hooks/useTransactions.ts'
 interface ExchangeDropdownProps {
   id: string
   value: number | null
-  onChange: (exchangeId: number) => void
+  onChange: (exchangeId: number | null) => void
 }
 
 /**
  * Exchange dropdown. Fetches the seeded + user-extended exchange list
  * from GET /api/exchanges (D-11). Includes an inline "Adicionar exchange"
  * action — a new exchange is immediately selectable without a refresh.
+ * Exchange is optional (product decision) — a "Nenhuma" option clears the
+ * selection.
  */
 export function ExchangeDropdown({ id, value, onChange }: ExchangeDropdownProps) {
   const { data: exchanges, isLoading } = useExchanges()
@@ -55,20 +57,34 @@ export function ExchangeDropdown({ id, value, onChange }: ExchangeDropdownProps)
       <button
         type="button"
         id={id}
-        className="w-full rounded-md border border-gray-300 px-3 py-2 text-left text-sm focus:border-gray-500 focus:outline-none"
+        className="w-full cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-left text-sm focus:border-gray-500 focus:outline-none"
         onClick={() => setOpen((o) => !o)}
       >
-        {isLoading ? 'Carregando...' : (selected?.name ?? 'Selecione a exchange')}
+        {isLoading
+          ? 'Carregando...'
+          : (selected?.name ?? 'Nenhuma exchange selecionada (opcional)')}
       </button>
 
       {open && (
         <div className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
           <ul>
+            <li>
+              <button
+                type="button"
+                className="block w-full cursor-pointer px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-100"
+                onClick={() => {
+                  onChange(null)
+                  setOpen(false)
+                }}
+              >
+                Nenhuma
+              </button>
+            </li>
             {exchanges?.map((exchange) => (
               <li key={exchange.id}>
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                  className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-gray-100"
                   onClick={() => {
                     onChange(exchange.id)
                     setOpen(false)
@@ -84,7 +100,7 @@ export function ExchangeDropdown({ id, value, onChange }: ExchangeDropdownProps)
             {!addingNew ? (
               <button
                 type="button"
-                className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100"
+                className="w-full cursor-pointer rounded-md px-2 py-1.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100"
                 onClick={() => setAddingNew(true)}
               >
                 + Adicionar exchange
@@ -102,7 +118,7 @@ export function ExchangeDropdown({ id, value, onChange }: ExchangeDropdownProps)
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
-                    className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                    className="cursor-pointer rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
                     onClick={resetAddForm}
                   >
                     Cancelar
@@ -110,7 +126,7 @@ export function ExchangeDropdown({ id, value, onChange }: ExchangeDropdownProps)
                   <button
                     type="button"
                     disabled={createExchange.isPending}
-                    className="rounded-md bg-gray-900 px-2 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-50"
+                    className="cursor-pointer rounded-md bg-gray-900 px-2 py-1 text-xs text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={handleCreateExchange}
                   >
                     {createExchange.isPending ? 'Salvando...' : 'Salvar'}
