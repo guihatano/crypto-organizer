@@ -43,3 +43,43 @@ export interface Exchange {
   id: number
   name: string
 }
+
+export interface Position {
+  coin_id: number
+  symbol: string | null
+  name: string | null
+  quantity: string
+  preco_medio: string
+  custo_total: string
+}
+
+export interface TransactionListItem {
+  id: number
+  date: string
+  type: 'buy' | 'sell'
+  coin_id: number
+  coin_symbol: string
+  coin_name: string
+  quantity: string
+  value_brl: string
+  fee_brl: string
+  exchange_id: number
+  exchange_name: string
+  origin: string
+  created_at: string
+}
+
+export interface CreateTransactionInput {
+  date: string
+  coin_id: number
+  quantity: string
+  value_brl: string
+  fee_brl: string
+  exchange_id: number
+  origin?: string
+}
+
+export interface CreateTransactionResponse {
+  transaction: TransactionListItem
+  positions: Position[]
+}
