@@ -4,569 +4,485 @@ plan: 01
 type: execute
 wave: 0
 depends_on: []
+autonomous: false
+requirements: [TX-01, TX-02, TX-03, TX-04, TX-05, TX-06, TX-07, POS-01, POS-02, POS-03]
 files_modified:
   - package.json
-  - src/
-  - prisma/ (or schema folder for Drizzle migrations)
+  - vite.config.ts
+  - vitest.config.ts
+  - drizzle.config.ts
   - .env.example
-autonomous: true
-requirements: [TX-01, TX-02, TX-03, TX-04, TX-05, TX-06, TX-07, POS-01, POS-02, POS-03]
+  - index.html
+  - src/main.tsx
+  - src/App.tsx
+  - src/index.css
+  - src/db/schema.ts
+  - src/db/client.ts
+  - src/db/seed.ts
+  - src/engine/types.ts
+  - src/engine/positionEngine.ts
+  - src/engine/validation.ts
+  - src/engine/__tests__/positionEngine.test.ts
+  - src/engine/__tests__/validation.test.ts
+  - src/lib/decimal.ts
+  - src/lib/format.ts
+  - src/lib/__tests__/format.test.ts
+  - src/server/index.ts
+  - src/server/routes/transactions.ts
+  - src/server/routes/positions.ts
+  - src/server/routes/coins.ts
+  - src/server/routes/exchanges.ts
+  - src/server/routes/rate.ts
+  - src/server/coingecko.ts
+  - src/server/__tests__/transactions.integration.test.ts
+  - src/api/client.ts
+  - src/hooks/useTransactions.ts
+  - src/components/PositionTable.tsx
+  - src/components/TransactionHistory.tsx
+  - src/components/TransactionForm.tsx
+  - src/components/CoinDropdown.tsx
+  - src/components/ExchangeDropdown.tsx
+  - src/components/CurrencyInput.tsx
+  - src/components/EmptyState.tsx
+  - src/components/DeleteConfirmDialog.tsx
+user_setup:
+  - service: coingecko
+    why: "Historical USDT->BRL conversion at transaction-entry time (D-06). OPTIONAL — every conversion path always falls back to manual override, so a missing key never blocks recording a transaction."
+    env_vars:
+      - name: COINGECKO_API_KEY
+        source: "CoinGecko Dashboard -> Developers -> API keys (free Demo tier, no credit card). Leave unset to run keyless with lower rate limits."
+
 must_haves:
   truths:
-    - User can enter a buy transaction (date, coin, quantity, value BRL or USDT, fee, exchange) and immediately see it in the transaction history
-    - User can enter a sell transaction; positions recalculate with the correct preço médio unchanged and custo de aquisição reduced proportionally
-    - User can edit or delete any transaction and all positions recompute immediately from the full ledger
-    - Per-coin position row shows quantity, preço médio, and custo de aquisição (with worked example: 1 BTC @ R$100k + R$500 fee = R$100,500 custo)
-    - Transaction history displays in chronological order showing date, type, coin, quantity, value, fee, and exchange of origin
+    - "User can record a buy (date, coin, quantity, value in BRL or USDT, fee/taxa, exchange) via a modal and immediately see it in the chronological transaction history and the position table."
+    - "A buy of 1 BTC for R$100.000 with R$500 fee shows custo de aquisicao R$100.500 and preco medio R$100.500/BTC in the position table."
+    - "A sell reduces the coin quantity and drops custo de aquisicao proportionally (custo = preco medio * quantidade restante) while the unit preco medio stays EXACTLY unchanged."
+    - "Selling more than held at any point in chronological order is blocked with a warning; a missing/failed conversion rate never blocks recording a transaction (manual override always available)."
+    - "Editing or deleting any transaction recomputes ALL positions immediately from the full ledger — derived values are never stored in the DB."
   artifacts:
-    - "src/engine/positionEngine.ts" — pure function calculatePositions() that replays ledger
-    - "src/engine/validation.ts" — validateSellTransaction() with chronological reconstruction
-    - "src/server/routes/transactions.ts" — CRUD endpoints (POST buy/sell, PATCH edit, DELETE)
-    - "src/server/routes/positions.ts" — GET /api/positions endpoint
-    - "src/db/schema.ts" — Drizzle schema (transactions, coins, exchanges tables with TEXT for amounts)
-    - "src/components/PositionTable.tsx" — displays per-coin summary
-    - "src/components/TransactionHistory.tsx" — chronological list with edit/delete actions
-    - "src/components/TransactionForm.tsx" — modal form for buy/sell entry
-    - "src/utils/formatting.ts" — pt-BR Intl.NumberFormat and Decimal.js display/parse functions
+    - "src/engine/positionEngine.ts — pure calculatePositions() that replays the ledger with Decimal.js"
+    - "src/engine/validation.ts — validateSellTransaction() with chronological reconstruction"
+    - "src/db/schema.ts — Drizzle schema (transactions, coins, exchanges) with TEXT amounts, coingecko_id, origin, CNPJ-ready exchanges"
+    - "src/server/routes/transactions.ts + positions.ts — CRUD + derived positions endpoints"
+    - "src/server/coingecko.ts — historical USDT->BRL rate with current-rate + manual-override fallback (D-06)"
+    - "src/components/TransactionForm.tsx / PositionTable.tsx / TransactionHistory.tsx — modal entry + single-screen views"
+    - "src/lib/format.ts — pt-BR Intl.NumberFormat display + comma-decimal input parsing on Decimal.js"
   key_links:
-    - "Position engine (pure ledger replay) → position read endpoint → PositionTable component" (must not cache positions in DB; always derived)
-    - "Transaction form submit → CRUD endpoint (with sell validation) → DB insert → query cache invalidation → table re-render" (end-to-end flow)
-    - "Modal form (CoinDropdown + ExchangeDropdown) → dropdowns fetch from GET /api/coins, /api/exchanges" (data dependencies)
-    - "Decimal.js wrapping of TEXT database values → all arithmetic uses Decimal (never Number)" (correctness critical)
-    - "USDT→BRL conversion (D-06) → CoinGecko historical rate at transaction date, fallback to current, always user-overridable" (currency conversion path)
+    - "Immutable ledger (transactions table) -> calculatePositions() pure replay -> GET /api/positions -> PositionTable (positions NEVER cached in DB)."
+    - "Modal submit -> POST/PATCH/DELETE (with chronological sell validation) -> SQLite TEXT insert -> TanStack Query invalidates ['positions'] + ['transactions'] -> both tables re-render."
+    - "TEXT DB values wrapped in new Decimal() -> every arithmetic step uses Decimal (never native Number) -> Intl.NumberFormat only at display."
+    - "Non-BRL value entry -> CoinGecko historical rate at tx date -> fallback current rate -> always user-overridable -> stored custo de aquisicao is BRL and never re-fetched (D-05/D-06)."
 ---
 
 ## Phase Goal
 
-Users can **record buy and sell transactions and immediately see their correct preço médio and custo de aquisição per coin**, computed per Brazilian tax rules using Decimal arithmetic. The phase delivers full transaction CRUD (create/edit/delete with immediate recalculation from the full ledger), a per-coin position view, and a chronological transaction history showing the originating exchange.
+**As a** crypto investor tracking Brazilian taxes across several exchanges, **I want to** record my buy and sell transactions and instantly see the correct preco medio and custo de aquisicao for each coin, **so that** I have an accurate, consolidated cost basis computed to the Brazilian tax rules without spreadsheets.
 
-**Success:** User records 1 BTC buy for R$100,000 with R$500 fee → sees R$100,500 custo de aquisição → sells 0.5 BTC → sees remaining 0.5 BTC with unchanged preço médio but scaled custo → deletes the sell → positions recalculate back to original → all changes happen without page refresh.
+> Derived from the ROADMAP `**Goal:**` line (prose form). All three user-story slots are evident in the roadmap goal plus the CONTEXT single-user framing.
+
+**Concrete success thread:** Record 1 BTC buy for R$100.000 with R$500 fee -> position table shows custo de aquisicao **R$100.500** and preco medio **R$100.500/BTC** -> record a second buy 0,5 BTC for R$60.000 + R$300 fee -> preco medio becomes **R$107.200** -> sell 0,5 BTC -> quantity drops to 1,0 BTC, custo drops to **R$107.200**, preco medio stays **R$107.200** -> delete the sell -> position recomputes back to 1,5 BTC / R$160.800. All without a page refresh.
+
+<objective>
+Deliver Phase 1 end-to-end: a single-screen local web app (D-09) where the user records buy/sell crypto transactions through a modal (D-03), and immediately sees a per-coin position table (D-10) and a chronological transaction history showing the originating exchange (TX-03, TX-07). The mathematical backbone is a pure, deterministic ledger-replay position engine (POS-01/02/03) using Decimal.js for every arithmetic step — derived values (quantity, preco medio, custo de aquisicao) are NEVER stored, always recomputed from the full ledger so edit/delete are trivially correct (TX-04, TX-05).
+
+Honors all 13 locked decisions: seeded + extendable coin list mapped to CoinGecko IDs (D-01, D-02); modal entry (D-03); buy as total-paid + separate fee summed into custo (D-04, TX-06); BRL default with optional USDT->BRL conversion stored permanently in BRL (D-05); historical rate -> current -> always-overridable fallback (D-06); sell-more-than-held blocked via chronological reconstruction (D-07, D-08); single-screen table layout (D-09, D-10); user-extendable exchange dropdown with a CNPJ-ready schema (D-11); delete confirmation + full recalculation on edit/delete (D-12); friendly empty state (D-13); full pt-BR formatting throughout (Claude's discretion).
+
+Purpose: Establish the correctness foundation the whole product rests on. Phase 2 (market prices) plugs into coins.coingecko_id and the positions endpoint; Phase 3 (Bens e Direitos) plugs into the exchanges table (CNPJ added later without migration pain) and the same ledger-replay engine with an asOf date.
+Output: A running `npm run dev` app + a fully unit-tested position engine + CRUD API + React UI. See "Artifacts This Phase Produces".
+</objective>
+
+<execution_context>
+@$HOME/.claude/gsd-core/workflows/execute-plan.md
+@$HOME/.claude/gsd-core/templates/summary.md
+</execution_context>
+
+<context>
+@.planning/PROJECT.md
+@.planning/ROADMAP.md
+@.planning/STATE.md
+@./.claude/CLAUDE.md
+@.planning/phases/01-transaction-management-position-engine/01-CONTEXT.md
+@.planning/phases/01-transaction-management-position-engine/01-RESEARCH.md
+@.planning/phases/01-transaction-management-position-engine/01-SKELETON.md
+</context>
 
 ---
 
-## Overview
+## Wave Organization (MVP Vertical Slices)
 
-This plan delivers Phase 1 in four waves, ordered for parallel execution with minimal file conflicts:
+Four internal waves. Each wave after Wave 0 delivers a complete usable vertical slice (form -> API -> DB -> position recalculation -> table re-render), not a horizontal layer. After each slice a real user can do something they could not do before.
 
-- **Wave 0:** Project scaffold (Vite + Hono + SQLite), database schema, position engine core + unit tests
-- **Wave 1:** API routes (transaction CRUD, positions query, coin/exchange dropdowns), form validation logic, CoinGecko historical rate test
-- **Wave 2:** React components (PositionTable, TransactionHistory, modal form), form field bindings, pt-BR formatting integration
-- **Wave 3:** Modal integration, empty state, TanStack Query setup, end-to-end smoke test, polish
+| Wave | Slice delivered | New user capability |
+| --- | --- | --- |
+| 0 | Walking Skeleton + pure position engine (proven first) | App runs; seeded coins render from DB->API->UI; the tax math is fully unit-tested with no UI dependency |
+| 1 | Record a BUY end-to-end | User records a buy in the modal and sees it in the history + position table with correct custo/preco medio |
+| 2 | Record a SELL + currency conversion | User records a sell (qty/custo drop, preco medio unchanged), blocked if oversold; can enter a USDT value converted to BRL with override |
+| 3 | Edit / delete + coin/exchange CRUD + verification | User edits and deletes transactions (all positions recompute), extends the coin/exchange lists, and the phase is verified against all 5 success criteria |
 
-Each wave delivers a thin vertical slice: **a working feature from UI → API → DB** by task completion. No "backend-only" waves — every task produces something a user can interact with (or a test exercises it).
+Tasks carry explicit per-task dependencies; the acyclic graph is in "Task Dependency Graph" below.
 
 ---
 
-## Architecture Snapshot
+<tasks>
 
-### Position Engine: Ledger Replay at Read Time
+<task type="auto">
+  <name>Task W0-1: Scaffold Vite+React+Hono+Vitest dev environment (est. 2h)</name>
+  <files>package.json, vite.config.ts, vitest.config.ts, index.html, src/main.tsx, src/App.tsx, src/index.css, src/server/index.ts, .env.example, tsconfig.json</files>
+  <read_first>./.claude/CLAUDE.md (Technology Stack — LOCKED versions; Installation; Version Compatibility); 01-RESEARCH.md (Validation Architecture); 01-SKELETON.md</read_first>
+  <action>Scaffold from the Vite react-ts template, then install ONLY the exact locked stack from CLAUDE.md Technology Stack: React 19, Vite 6, TypeScript 5, Hono 4 + @hono/node-server 1, better-sqlite3 12.3 + @types/better-sqlite3, drizzle-orm 0.45 + drizzle-kit 0.30, decimal.js 10.6, @tanstack/react-query 5 + devtools, tailwindcss 4 + @tailwindcss/vite, vitest 3 + @testing-library/react + @testing-library/user-event, tsx 4, concurrently 9. Configure Tailwind v4 via the @tailwindcss/vite plugin (CSS-first, no tailwind.config.js). Create a minimal Hono server in src/server/index.ts served by @hono/node-server on port 3000 exposing GET /api/health returning a status ok object. Add a Vite dev proxy so the React app on 5173 forwards /api/* to 3000. Add npm scripts: dev runs Vite and the tsx --watch Hono server together via concurrently; plus build, test, test:run, seed, db:push. Run npm audit after install and record the result in the summary. Do not add any package outside the locked table.</action>
+  <verify>
+    <automated>npm run build && npm run test:run</automated>
+  </verify>
+  <acceptance_criteria>
+    - npm run dev starts Vite (5173) and Hono (3000) concurrently with no errors.
+    - curl of http://localhost:3000/api/health returns the status ok JSON.
+    - npm run build produces a bundle; npm run test:run runs the empty Vitest suite green.
+    - package.json contains only packages from the CLAUDE.md locked stack table.
+  </acceptance_criteria>
+  <done>Dev environment runs both processes; health endpoint responds; build + empty test suite pass; only locked packages installed.</done>
+</task>
 
-The position engine is a **pure, deterministic TypeScript function** that takes a list of transactions and returns per-coin positions. It never stores preço médio or custo de aquisição in the database; these are always **derived from the immutable transaction ledger at read time**.
+<task type="auto">
+  <name>Task W0-2: Drizzle schema + SQLite client + seed (coins with coingecko_id, CNPJ-ready exchanges) (est. 2h)</name>
+  <files>drizzle.config.ts, src/db/schema.ts, src/db/client.ts, src/db/seed.ts</files>
+  <read_first>01-RESEARCH.md (Drizzle ORM Schema Design — full table definitions, seeded coins/exchanges, indexes); ./.claude/CLAUDE.md (Decimal Math — TEXT storage rule; Stack Patterns — origin column from day one); 01-CONTEXT.md (D-01, D-02, D-11)</read_first>
+  <action>Define the Drizzle schema exactly as in RESEARCH Drizzle Schema Design. transactions: id, date (TEXT ISO YYYY-MM-DD), type buy or sell, coin_id FK, quantity/value_brl/fee_brl all TEXT (never REAL — preserves Decimal precision per CLAUDE.md), exchange_id FK, origin TEXT default manual (D-11 extensibility from day one), created_at/updated_at TEXT. coins: id, symbol unique, name, coingecko_id TEXT NOT NULL present from day one for Phase 2 (D-01), timestamps. exchanges: id, name unique, timestamps — design so a nullable cnpj column can be ADDed later without a destructive migration (D-11; CNPJ itself deferred to Phase 3, do NOT add it now). Add indexes on (coin_id, date) and (date, created_at) for the engine read path. Create src/db/client.ts wrapping better-sqlite3 with the Drizzle adapter (single-user synchronous driver). Create src/db/seed.ts that idempotently seeds ~20 top coins mapped to correct CoinGecko IDs (BTC to bitcoin, ETH to ethereum, USDT to tether, USDC to usd-coin, XRP to ripple, and more) and default exchanges (Manual, Binance, Kraken, Coinbase, Mercado Bitcoin). Wire drizzle.config.ts for drizzle-kit push.</action>
+  <verify>
+    <automated>npm run db:push &amp;&amp; npm run seed &amp;&amp; node -e "const d=require('better-sqlite3')('app.db');const c=d.prepare('select count(*) n from coins').get().n;const e=d.prepare('select count(*) n from exchanges').get().n;if(c&lt;15||e&lt;3)process.exit(1);console.log('coins',c,'exchanges',e)"</automated>
+  </verify>
+  <acceptance_criteria>
+    - drizzle-kit push creates transactions, coins, exchanges tables; amount columns are TEXT (not REAL).
+    - coins has a NOT NULL coingecko_id column and >=15 seeded rows; exchanges has >=3 seeded rows including Manual.
+    - Indexes exist on (coin_id, date) and (date, created_at).
+    - No cnpj column exists yet, but the exchanges table can gain a nullable cnpj via a plain ALTER (documented in the summary).
+  </acceptance_criteria>
+  <done>Schema pushed, seed populated, TEXT-amount + coingecko_id + origin conventions in place; verify script prints coin/exchange counts and exits 0.</done>
+</task>
 
-```typescript
-calculatePositions(transactions: Transaction[], asOf?: Date): Position[]
+<task type="auto">
+  <name>Task W0-3: Walking-skeleton vertical thread — coins/exchanges API + React renders seeded coins (est. 2h)</name>
+  <files>src/server/routes/coins.ts, src/server/routes/exchanges.ts, src/server/index.ts, src/api/client.ts, src/main.tsx, src/App.tsx, src/index.css</files>
+  <read_first>01-SKELETON.md (Capability Proven End-to-End); 01-RESEARCH.md (React Component Hierarchy, TanStack Query Integration); ./.claude/CLAUDE.md (@tanstack/react-query usage)</read_first>
+  <action>Prove the full stack with the thinnest real thread. Backend: add GET /api/coins returning {id, symbol, name, coingecko_id} and GET /api/exchanges returning {id, name}, both reading live from SQLite via Drizzle; register them on the Hono app. Frontend: wrap the app in QueryClientProvider (staleTime 60s) in src/main.tsx with react-query-devtools; add a tiny typed fetch wrapper in src/api/client.ts; in src/App.tsx render a single-screen shell (page title, a placeholder for the position table on top and history below per D-09) and, as the skeleton proof, fetch GET /api/coins via useQuery and render the seeded coin symbols in a small list with visible loading and error states. Apply Tailwind base styling. This is the one real DB read surfaced in one real UI interaction (loading -> data). Leave clearly-marked mount points for PositionTable and TransactionHistory added in Wave 1.</action>
+  <verify>
+    <automated>npm run test:run &amp;&amp; npm run build</automated>
+  </verify>
+  <acceptance_criteria>
+    - With the server running, opening the app shows the seeded coin symbols fetched from GET /api/coins (loading state visible first).
+    - curl of /api/coins and /api/exchanges return JSON arrays sourced from SQLite.
+    - App shell shows the single-screen layout skeleton (positions region on top, history region below) per D-09.
+    - QueryClientProvider + devtools mounted; build passes.
+  </acceptance_criteria>
+  <done>DB -> API -> React round-trip works end-to-end; seeded coins render in the browser; single-screen shell in place with named mount points for Wave 1.</done>
+</task>
+
+<task type="auto" tdd="true">
+  <name>Task W0-4: Pure position engine + sell validation with Decimal.js (est. 2.5h)</name>
+  <files>src/engine/types.ts, src/lib/decimal.ts, src/engine/positionEngine.ts, src/engine/validation.ts</files>
+  <read_first>01-RESEARCH.md (Position Engine Algorithm; Worked Example; Code Examples — Position Engine Core + Sell Validation; Common Pitfalls 1-5); .planning/REQUIREMENTS.md (POS-01, POS-02, POS-03); ./.claude/CLAUDE.md (Decimal Math)</read_first>
+  <behavior>
+    - calculatePositions(txs, asOf=now) is PURE: filters txs with date &lt;= asOf, groups by coin_id, replays chronologically (date asc, tie-break created_at asc), returns {coin_id, quantity, preco_medio, custo_total} Decimals. Derived values never persisted (POS-01).
+    - BUY (POS-02, TX-06): custo_total += value_brl + fee_brl; quantity += qty; preco_medio = custo_total / quantity. Fee is summed into custo (never dropped, never added as literal 0).
+    - SELL (POS-03): capture preco_medio from the PRE-SELL state (custo_total / quantity, BEFORE reducing quantity); then quantity -= qty; custo_total = preco_medio * remaining quantity. Unit preco_medio stays EXACTLY unchanged. Ordering matters: computing preco_medio AFTER reducing quantity inflates it and corrupts custo — do not reduce first. sell value_brl is inert for Phase 1 math.
+    - validateSellTransaction(newSell, existing) replays coin txs in date order INCLUDING the candidate; returns {valid:false, reason} if holdings would go negative at ANY point (D-07/D-08), stricter than a net-total check.
+    - Every arithmetic step uses Decimal.js via src/lib/decimal.ts helpers; native Number is never used for money/quantity.
+  </behavior>
+  <action>Implement src/engine/types.ts (Transaction, Position interfaces with TEXT string inputs and Decimal outputs), src/lib/decimal.ts (thin Decimal.js factory + helpers configured for >=8 dp), src/engine/positionEngine.ts (calculatePositions per the RESEARCH pseudocode + corrected code example — the sell branch MUST compute preco_medio from the pre-sell state before subtracting the sold quantity, per the &lt;behavior&gt; above; the W0-5 sell case is authoritative on the expected numbers), and src/engine/validation.ts (validateSellTransaction per RESEARCH code example). No I/O, no DB, no framework imports — pure functions only, so they are unit-testable before any UI or API exists.</action>
+  <verify>
+    <automated>npm run test:run -- src/engine</automated>
+  </verify>
+  <acceptance_criteria>
+    - calculatePositions and validateSellTransaction are exported pure functions with no side effects or imports of db/server/React.
+    - A quick REPL/import check computes the worked example (1 BTC @ R$100000 + R$500) to custo 100500, preco medio 100500.
+    - All arithmetic routes through Decimal.js; no native Number math on amounts/quantities.
+  </acceptance_criteria>
+  <done>Engine + validation implemented as pure Decimal.js functions; tests added in W0-5 will lock behavior.</done>
+</task>
+
+<task type="auto" tdd="true">
+  <name>Task W0-5: Position engine + pt-BR formatting unit tests (canonical cases) (est. 2.5h)</name>
+  <files>src/engine/__tests__/positionEngine.test.ts, src/engine/__tests__/validation.test.ts, src/lib/format.ts, src/lib/__tests__/format.test.ts</files>
+  <read_first>01-RESEARCH.md (Worked Example; Common Pitfalls 2-5; pt-BR Locale and Formatting; Validation Architecture — Phase Requirements to Test Map); 01-CONTEXT.md (Claude's Discretion — pt-BR formatting)</read_first>
+  <behavior>
+    - positionEngine.test.ts MUST include, at minimum: (a) worked example 1 BTC @ R$100000 + R$500 fee -> custo 100500, preco medio 100500 (ROADMAP criterion 4); (b) second buy 0,5 BTC @ R$60000 + R$300 -> preco medio 107200; (c) sell 0,5 BTC -> quantity 1,0, custo 107200, preco medio UNCHANGED 107200 (POS-03); (d) Decimal-precision case that fails with native floats: three buys summing R$333,33 each -> total exactly R$999,99 (Pitfall 2); (e) empty ledger -> empty positions; (f) asOf filter excludes later-dated txs.
+    - validation.test.ts MUST include: chronological rejection — buy 1 BTC on 2026-07-10, sell 0,5 on 2026-07-05, sell 0,5 on 2026-07-05 -> second sell rejected even though net total is non-negative (D-08); oversell rejected; valid sell accepted.
+    - format.test.ts: formatBRL(Decimal '1234.56') -> 'R$ 1.234,56'; formatQuantity('0.00314159') keeps 8 dp with comma decimal; parseBRLInput('1.234,56') -> Decimal 1234.56; parseQuantityInput('0,00314159') -> Decimal 0.00314159.
+  </behavior>
+  <action>Implement src/lib/format.ts (Intl.NumberFormat pt-BR display for BRL and quantities + comma-decimal input parsers on Decimal.js, per RESEARCH pt-BR Locale). Write the three test files covering every behavior above. These tests are the Wave 0 safety net that the ROADMAP correctness criteria (2 and 4) and the Brazilian rule depend on; they must exist and pass before any Wave 1 API work consumes the engine.</action>
+  <verify>
+    <automated>npm run test:run -- src/engine src/lib</automated>
+  </verify>
+  <acceptance_criteria>
+    - All canonical cases (a)-(f), the three validation cases, and the four formatting cases pass.
+    - The R$333,33 x3 test asserts exactly R$999,99 (would fail under native Number).
+    - The sell test asserts preco medio is byte-for-byte unchanged after the sell.
+    - Coverage for src/engine and src/lib is >=90%.
+  </acceptance_criteria>
+  <done>Engine, validation, and formatting are locked by passing unit tests including every canonical correctness case; the tax backbone is proven before UI.</done>
+</task>
+
+### Wave 1 — Record a BUY end-to-end (first usable slice)
+
+<task type="auto" tdd="true">
+  <name>Task W1-1: Buy API slice — POST /buy, GET /positions, GET /transactions + integration tests (est. 3h)</name>
+  <files>src/server/routes/transactions.ts, src/server/routes/positions.ts, src/server/index.ts, src/server/__tests__/transactions.integration.test.ts</files>
+  <read_first>01-RESEARCH.md (Architectural Responsibility Map; Position Engine Algorithm; Validation and Error Handling; Security Domain — parameterized queries); .planning/REQUIREMENTS.md (TX-01, TX-03, TX-06, TX-07, POS-01); 01-CONTEXT.md (D-04)</read_first>
+  <behavior>
+    - POST /api/transactions/buy accepts {date, coin_id, quantity, value_brl, fee_brl, exchange_id, origin?}; validates date not in future, quantity &gt; 0, required fields present; parses amounts as strings; inserts TEXT amounts via Drizzle parameterized query; returns 201 with the created row + recomputed positions (D-04, TX-01, TX-06). Fee stored separately and summed into custo by the engine (never at write time).
+    - GET /api/positions loads all transactions and returns calculatePositions() output as STRING amounts joined with coin symbol/name (POS-01) — positions are computed, never read from a stored column.
+    - GET /api/transactions returns all rows sorted by date asc then created_at asc, joined to coin + exchange names (TX-03, TX-07).
+    - Invalid buy (missing coin, quantity 0, future date) -> 400 with a clear message; no internal state leaked (Security V7).
+  </behavior>
+  <action>Implement the buy + read endpoints in Hono, importing the pure engine from Wave 0. Register routes on src/server/index.ts. Write src/server/__tests__/transactions.integration.test.ts using an in-memory/temp SQLite DB: assert the worked-example buy returns custo 100500; GET /positions matches the engine; GET /transactions is chronologically sorted and includes the exchange name; invalid inputs return 400. Use Drizzle parameterized queries only (no string interpolation).</action>
+  <verify>
+    <automated>npm run test:run -- src/server</automated>
+  </verify>
+  <acceptance_criteria>
+    - POST /buy with the worked example returns 201 and positions showing custo 100500 / preco medio 100500 (string amounts).
+    - GET /transactions is sorted date asc + created_at asc and includes exchange + coin names.
+    - GET /positions equals calculatePositions() over the same ledger (no DB-cached derived values).
+    - Invalid buys return 400 with a safe message; integration tests green.
+  </acceptance_criteria>
+  <done>Buy write path + derived read endpoints work and are integration-tested against a real SQLite DB.</done>
+</task>
+
+<task type="auto">
+  <name>Task W1-2: Buy UI slice — modal form, PositionTable, TransactionHistory, empty state, pt-BR (est. 3.5h)</name>
+  <files>src/components/TransactionForm.tsx, src/components/PositionTable.tsx, src/components/TransactionHistory.tsx, src/components/CoinDropdown.tsx, src/components/ExchangeDropdown.tsx, src/components/EmptyState.tsx, src/hooks/useTransactions.ts, src/App.tsx</files>
+  <read_first>01-RESEARCH.md (React Component Hierarchy; Component Responsibilities; TanStack Query Integration; pt-BR Locale — labels/headers); 01-CONTEXT.md (D-01, D-03, D-04, D-09, D-10, D-13); ./.claude/CLAUDE.md (shadcn/ui, TanStack Query)</read_first>
+  <action>Build the buy slice UI (D-03 modal launched by a Nova transacao button). TransactionForm buy mode fields: Data, Moeda (CoinDropdown searchable, seeded list from GET /api/coins, returns coin.id — D-01), Quantidade, Valor Total (BRL), Taxa (separate field — D-04/TX-06), Exchange (ExchangeDropdown from GET /api/exchanges). Inputs accept comma-decimal and parse via src/lib/format.ts. On submit call a useCreateTransaction hook (useTransactions.ts) POSTing /buy, then invalidate ['positions'] and ['transactions'] so both tables re-render (no refresh). PositionTable (D-10): one row per coin — Moeda | Quantidade | Preco Medio | Custo Total, all pt-BR formatted; designed with room for Phase 2 market columns. TransactionHistory (TX-03/TX-07): Data | Tipo | Moeda | Quantidade | Valor | Taxa | Exchange | Acoes, chronological. EmptyState (D-13): when zero transactions, hide the tables and show a friendly message with a prominent Lancar primeira transacao button that opens the modal (no placeholder row). Wire all three into the App single-screen layout (D-09): positions on top, history below.</action>
+  <verify>
+    <automated>npm run test:run &amp;&amp; npm run build</automated>
+  </verify>
+  <acceptance_criteria>
+    - Nova transacao opens the modal; recording the worked-example buy makes it appear in TransactionHistory and PositionTable WITHOUT a page refresh.
+    - PositionTable shows the BTC row with Custo Total R$ 100.500,00 and Preco Medio R$ 100.500,00 (pt-BR format).
+    - History rows are chronological and show the exchange name for every entry.
+    - With zero transactions the EmptyState with Lancar primeira transacao is shown instead of empty tables.
+    - CoinDropdown/ExchangeDropdown populate from the seeded lists.
+  </acceptance_criteria>
+  <done>User can record a buy through the modal and immediately see it reflected in both tables with correct pt-BR-formatted custo/preco medio; empty state present. Satisfies success criteria 1, 4, 5.</done>
+</task>
+
+### Wave 2 — Record a SELL + currency conversion (second usable slice)
+
+<task type="auto" tdd="true">
+  <name>Task W2-1: Sell API + chronological validation + CoinGecko rate fallback (D-06) + smoke test (est. 3h)</name>
+  <files>src/server/routes/transactions.ts, src/server/coingecko.ts, src/server/routes/rate.ts, src/server/index.ts, src/server/__tests__/transactions.integration.test.ts</files>
+  <read_first>01-RESEARCH.md (Sell Validation — Chronological Reconstruction; Historical Rate Lookup Feasibility — implementation path + fallback; Assumptions A1/A2); .planning/REQUIREMENTS.md (TX-02, POS-03); 01-CONTEXT.md (D-05, D-06, D-07, D-08)</read_first>
+  <behavior>
+    - POST /api/transactions/sell accepts {date, coin_id, quantity, value_brl (valor recebido, inert for Phase 1 math), fee_brl, exchange_id}; runs validateSellTransaction against the full ledger BEFORE insert; on negative-holdings-at-any-point returns 400 with the reason (D-07/D-08, TX-02); on success inserts and returns recomputed positions with preco medio unchanged (POS-03).
+    - GET /api/rate?from=USDT&amp;date=YYYY-MM-DD returns {rate, source:'historical'|'current'|'unavailable'}: tries CoinGecko historical (/simple/price with date dd-mm-yyyy, vs_currencies=brl), falls back to current rate, and if both fail returns source 'unavailable' with rate null. It NEVER throws in a way that blocks the caller — the client always allows manual override (D-06). Stored custo de aquisicao is always BRL and never re-fetched afterward (D-05).
+    - coingecko.ts reads COINGECKO_API_KEY if present, otherwise runs keyless; uses native fetch (no axios per CLAUDE.md).
+  </behavior>
+  <action>Implement the sell endpoint (reusing the Wave 0 validation function), src/server/coingecko.ts (getHistoricalRate + getCurrentRate with graceful fallback chain), and GET /api/rate. Extend the integration test file: sell reduces quantity and drops custo proportionally with preco medio unchanged; oversell and chronological-insert-oversell both return 400; a rate smoke test asserts GET /api/rate returns a numeric rate for a past date OR degrades to source 'unavailable' with rate null (network-independent — mock or tolerate offline) and never 500s. Run this smoke test early so a missing rate can never block transaction entry.</action>
+  <verify>
+    <automated>npm run test:run -- src/server</automated>
+  </verify>
+  <acceptance_criteria>
+    - Selling more than held (including via an out-of-order earlier sell) returns 400 with a clear reason (D-07/D-08).
+    - A valid sell returns positions with reduced quantity + proportionally reduced custo and BYTE-FOR-BYTE unchanged preco medio (POS-03).
+    - GET /api/rate returns {rate, source} and, when CoinGecko is unavailable, returns source 'unavailable' + rate null without throwing/500.
+    - No re-fetch of a stored transaction's BRL value ever occurs (D-05).
+  </acceptance_criteria>
+  <done>Sell path with chronological validation works; currency-conversion helper with historical->current->manual-override fallback is proven by a network-tolerant smoke test. Satisfies success criterion 2 (API side).</done>
+</task>
+
+<task type="auto">
+  <name>Task W2-2: Sell UI + CurrencyInput (BRL/USDT toggle, rate display, manual override) (est. 2.5h)</name>
+  <files>src/components/TransactionForm.tsx, src/components/CurrencyInput.tsx, src/hooks/useTransactions.ts</files>
+  <read_first>01-RESEARCH.md (Component Responsibilities — TransactionForm sell tab, CurrencyInput; Open Questions 1 — sell received-value UI); 01-CONTEXT.md (D-04, D-05, D-06, D-07); 01-RESEARCH.md (pt-BR Locale — labels)</read_first>
+  <action>Add sell mode to TransactionForm (Compra/Venda toggle): Data, Moeda, Quantidade, Valor Recebido (shown with a note that it is stored for a future capital-gains phase; inert in Phase 1 math), Taxa, Exchange. On submit POST /sell via the mutation hook; if the API returns 400 (oversell) show the reason inline below the quantity field (D-07). Build CurrencyInput used by the Valor Total field in buy mode (D-05/D-06): a BRL/USDT toggle defaulting to BRL; when USDT is selected it calls GET /api/rate for the transaction date, displays the fetched rate + a source/timestamp hint, shows the computed BRL amount, and ALWAYS exposes an editable BRL override field so a missing/failed rate never blocks entry. The value persisted is the resulting BRL amount only (never re-fetched later). Invalidate ['positions'] + ['transactions'] on success so tables re-render live.</action>
+  <verify>
+    <automated>npm run test:run &amp;&amp; npm run build</automated>
+  </verify>
+  <acceptance_criteria>
+    - Recording a sell of 0,5 BTC after the two worked-example buys shows quantity 1,0 BTC, custo R$ 107.200,00, preco medio UNCHANGED at R$ 107.200,00 in the PositionTable, live.
+    - Attempting to sell more than held shows the API reason inline; the transaction is not recorded (D-07).
+    - Selecting USDT fetches and displays a rate + computed BRL and still allows a manual BRL override; with the rate endpoint unavailable the override alone lets the buy be recorded (D-06).
+  </acceptance_criteria>
+  <done>User records sells (with correct Brazilian-rule recomputation and oversell block) and can enter USDT-denominated buys converted to BRL with an always-available manual override. Satisfies success criterion 2 (UI side) and D-05/D-06.</done>
+</task>
+
+### Wave 3 — Edit / delete + coin/exchange CRUD + verification
+
+<task type="auto" tdd="true">
+  <name>Task W3-1: Edit/Delete API + add-coin/add-exchange + recalculation tests (est. 2.5h)</name>
+  <files>src/server/routes/transactions.ts, src/server/routes/coins.ts, src/server/routes/exchanges.ts, src/server/index.ts, src/server/__tests__/transactions.integration.test.ts</files>
+  <read_first>01-RESEARCH.md (Architectural Responsibility Map; Common Pitfall 1 — never store derived state); .planning/REQUIREMENTS.md (TX-04, TX-05); 01-CONTEXT.md (D-02, D-11, D-12)</read_first>
+  <behavior>
+    - PATCH /api/transactions/:id updates the row (re-validating a sell against the ledger) and returns recomputed positions from the full ledger (TX-04, D-12).
+    - DELETE /api/transactions/:id removes the row and returns recomputed positions; if a coin has no remaining transactions its position row disappears (TX-05, D-12).
+    - POST /api/coins {symbol, name, coingecko_id} adds a user coin (D-02); POST /api/exchanges {name} adds a user exchange (D-11). Both reject duplicates with 400.
+    - All position numbers after edit/delete come from calculatePositions() over the current ledger — never from a stored column (Pitfall 1).
+  </behavior>
+  <action>Implement PATCH + DELETE for transactions and POST for coins + exchanges in Hono. Extend the integration test file: edit a buy quantity -> positions recompute; delete the Wave-2 sell -> position reverts to 1,5 BTC / custo 160.800 (proving full-ledger recomputation); delete the last transaction of a coin -> its position row disappears; POST duplicate coin/exchange -> 400.</action>
+  <verify>
+    <automated>npm run test:run -- src/server</automated>
+  </verify>
+  <acceptance_criteria>
+    - PATCH and DELETE both return positions recomputed from the full ledger (no stale/cached derived values).
+    - Deleting the sell restores the prior position exactly (1,5 BTC / R$160.800).
+    - POST /api/coins and /api/exchanges add rows and reject duplicates with 400.
+  </acceptance_criteria>
+  <done>Edit/delete recompute all positions from the ledger and coin/exchange lists are user-extendable, all integration-tested. Satisfies success criterion 3 (API side) + D-02/D-11.</done>
+</task>
+
+<task type="auto">
+  <name>Task W3-2: Edit/Delete UI + delete confirmation + add-coin/add-exchange inline (est. 2.5h)</name>
+  <files>src/components/TransactionHistory.tsx, src/components/TransactionForm.tsx, src/components/DeleteConfirmDialog.tsx, src/components/CoinDropdown.tsx, src/components/ExchangeDropdown.tsx, src/hooks/useTransactions.ts</files>
+  <read_first>01-RESEARCH.md (Component Responsibilities — TransactionHistory edit/delete; CoinDropdown/ExchangeDropdown add-new); 01-CONTEXT.md (D-02, D-11, D-12)</read_first>
+  <action>Wire the Acoes column: an Editar button opens TransactionForm prefilled in edit mode -> PATCH; an Excluir button opens DeleteConfirmDialog (Tem certeza? per D-12) -> DELETE only on confirm. Both use mutation hooks that invalidate ['positions'] + ['transactions'] so both tables recompute live. Add an Adicionar moeda action at the bottom of CoinDropdown (inline form: symbol + name + coingecko_id -> POST /api/coins, D-02) and an Adicionar exchange action in ExchangeDropdown (name -> POST /api/exchanges, D-11); new entries appear immediately in the dropdowns.</action>
+  <verify>
+    <automated>npm run test:run &amp;&amp; npm run build</automated>
+  </verify>
+  <acceptance_criteria>
+    - Editar prefills the modal; saving updates the row and both tables recompute live.
+    - Excluir shows a confirmation dialog and only deletes on confirm; positions recompute immediately (D-12).
+    - Adding a coin / exchange inline makes it selectable in the dropdown without a refresh (D-02/D-11).
+  </acceptance_criteria>
+  <done>Full transaction CRUD is usable from the UI with a delete confirmation, and the coin/exchange lists are extendable in-place. Satisfies success criterion 3 (UI side).</done>
+</task>
+
+<task type="auto">
+  <name>Task W3-3: Verification, pt-BR/a11y polish, coverage + build gate (est. 2h)</name>
+  <files>src/App.tsx, src/index.css, src/components/PositionTable.tsx, src/components/TransactionHistory.tsx, vitest.config.ts</files>
+  <read_first>.planning/ROADMAP.md (Phase 1 — 5 Success Criteria); 01-RESEARCH.md (Validation Architecture — Phase Requirements to Test Map; Sampling Rate); 01-CONTEXT.md (Claude's Discretion — pt-BR)</read_first>
+  <action>Final consistency + verification pass. Audit that every currency cell displays R$ 1.234,56 form and every quantity uses comma decimals up to 8 places across PositionTable and TransactionHistory. Add basic accessibility (form labels tied to inputs, keyboard-openable modal + dialog, focus management) and responsive layout for tablet width. Configure vitest coverage thresholds (>=80% for src/engine, src/lib, src/server). Produce the Success-Criteria -> test mapping evidence (see "Success Criteria to Tasks/Tests Map" below) and record it in the phase SUMMARY. Confirm the full run is green and the bundle builds clean.</action>
+  <verify>
+    <automated>npm run test:run &amp;&amp; npm run build</automated>
+  </verify>
+  <acceptance_criteria>
+    - All 5 ROADMAP success criteria have a passing automated test or a documented UAT step in the mapping.
+    - pt-BR formatting is consistent across all amount/quantity cells.
+    - Coverage >=80% for engine/lib/server; build has no errors.
+    - Forms have labels and the modal + delete dialog are keyboard-accessible.
+  </acceptance_criteria>
+  <done>Phase verified against all 5 success criteria, formatting and a11y polished, coverage + build gates green.</done>
+</task>
+
+<task type="checkpoint:human-verify" gate="blocking">
+  <name>Task W3-4: Human end-to-end walkthrough of the success thread</name>
+  <read_first>.planning/ROADMAP.md (Phase 1 — 5 Success Criteria); this plan's "Phase Goal" success thread</read_first>
+  <what-built>Full Phase 1 app: modal buy/sell entry, single-screen position table + chronological history, edit/delete with recalculation, USDT->BRL conversion with override, pt-BR formatting.</what-built>
+  <action>Pause autonomous execution and ask the developer to run the app and perform the 9-step walkthrough below, confirming each ROADMAP success criterion visually before the phase is marked complete. Do not proceed past this gate until the developer types "approved".</action>
+  <how-to-verify>
+    1. Run `npm run dev` and open http://localhost:5173.
+    2. Empty state: confirm the "Lancar primeira transacao" button is shown (no example rows).
+    3. Click it; record a BUY: 2026-07-01, BTC, quantidade 1, Valor Total R$100.000, Taxa R$500, exchange Binance. Submit.
+    4. Confirm PositionTable shows BTC — Quantidade 1, Preco Medio R$ 100.500,00, Custo Total R$ 100.500,00; history shows the entry with the exchange.
+    5. Record a second BUY: 0,5 BTC, R$60.000, Taxa R$300. Confirm Preco Medio becomes R$ 107.200,00.
+    6. Record a SELL of 0,5 BTC. Confirm Quantidade 1,0, Custo Total R$ 107.200,00, Preco Medio UNCHANGED R$ 107.200,00.
+    7. Try to SELL 5 BTC. Confirm it is blocked with a warning.
+    8. Edit the first buy quantity, confirm positions recompute; delete the sell, confirm position reverts to 1,5 BTC / R$ 160.800,00.
+    9. In the buy modal, toggle the value currency to USDT and confirm a rate + computed BRL appear and that you can override the BRL manually.
+  </how-to-verify>
+  <acceptance_criteria>
+    - All 9 steps behave as described; amounts render in pt-BR; no page refresh needed for any update; no console errors.
+  </acceptance_criteria>
+  <resume-signal>Type "approved" or describe any discrepancies.</resume-signal>
+</task>
+
+</tasks>
+
+---
+
+## Task Dependency Graph (acyclic)
+
+```
+W0-1 (scaffold)
+ ├─ W0-2 (schema+seed)
+ │   └─ W0-3 (skeleton thread: coins API + React render)   [Walking Skeleton complete after W0-3]
+ └─ W0-4 (engine + validation, pure)
+     └─ W0-5 (engine + format unit tests)
+
+W1-1 (buy API)         needs W0-2, W0-4, W0-5
+W1-2 (buy UI)          needs W0-3, W1-1            [Slice 1: record a buy]
+
+W2-1 (sell API + rate) needs W1-1, W0-4
+W2-2 (sell UI + currency) needs W1-2, W2-1        [Slice 2: record a sell + conversion]
+
+W3-1 (edit/delete + coin/exch API) needs W1-1
+W3-2 (edit/delete + add UI)        needs W1-2, W2-2, W3-1   [Slice 3: full CRUD]
+W3-3 (verification + polish)       needs W3-2
+W3-4 (human walkthrough)           needs W3-3
 ```
 
-**Flow:**
-1. Filter transactions by date (asOf parameter for future Bens e Direitos snapshots)
-2. Group by coin_id
-3. For each coin, replay in chronological order:
-   - Buy: add quantity, sum into custo_total, recalculate unit preço_médio
-   - Sell: subtract quantity, scale custo_total proportionally (preço_médio unchanged)
-4. Return positions array
-
-This ensures:
-- Edit/delete a transaction → rerun the engine → all positions correct
-- No mutable state to sync; correctness is deterministic
-- Passed all unit tests before any UI integration
-
-### Data Flow: Modal → API → Database → Query Cache → Table Update
-
-```
-User enters form → TransactionForm.onSubmit()
-  ↓
-POST /api/transactions/buy (or /sell)
-  ↓
-API validates: required fields, Decimal.js parsing, sell validation (chronological reconstruction)
-  ↓
-Insert transaction into SQLite (TEXT columns for amounts)
-  ↓
-API response: transaction + updated positions
-  ↓
-TanStack Query invalidates ['positions'] + ['transactions']
-  ↓
-Components refetch automatically
-  ↓
-PositionTable + TransactionHistory re-render with live data
-```
-
-### Key Patterns: Decimal.js, Ledger Replay, CoinGecko Async Rate Fetch
-
-- **Decimal.js everywhere:** All monetary and quantity values are TEXT in SQLite, wrapped in `new Decimal()` on load, calculated with Decimal methods, formatted with `Intl.NumberFormat` for display.
-- **Ledger-replay position engine:** No derived state stored; pure function replayed on every read.
-- **CoinGecko historical rate fetch (D-06):** At transaction-entry time, if user enters non-BRL value, API fetches historical USDT→BRL rate for that date. Fallback to current rate if unavailable. User can always override manually.
-- **pt-BR formatting from day one:** Input parser accepts comma as decimal; display uses dot for thousands, comma for decimals (R$ 1.234,56).
-- **Chronological reconstruction for sell validation:** Before accepting a sell, replay the ledger in date order; block if holdings go negative at any point.
+No cycles. Wave 0 tasks may run partly in parallel (W0-2/W0-3 thread is independent of W0-4/W0-5 engine thread). Each subsequent wave completes one vertical slice.
 
 ---
 
-## Task Breakdown by Wave
+## Success Criteria to Tasks/Tests Map
 
-### Wave 0: Foundation & Schema
+Every ROADMAP Phase 1 success criterion maps to concrete tasks AND a concrete test.
 
-Tasks that establish the project skeleton, database schema, and the core position engine logic (plus comprehensive unit tests).
-
-| Task ID | Title | Estimate | Blockers | UAT Criteria |
-| --- | --- | --- | --- | --- |
-| T-1-W0-001 | Project scaffold: Vite + React + Hono + SQLite | 1.5h | None | `npm run dev` starts both Vite (port 5173) and Hono (port 3000) in parallel; `npm run build` produces optimized bundles; `npm run test` runs empty test suite |
-| T-1-W0-002 | Drizzle schema: transactions, coins, exchanges tables | 1h | T-1-W0-001 | `npx drizzle-kit push` creates tables; inspect SQLite with `sqlite3 app.db ".schema"` to verify TEXT columns for amounts, indexes on (coin_id, date), foreign key references |
-| T-1-W0-003 | Seed script: populate coins (BTC, ETH, USDT, etc.) and exchanges (Binance, Kraken, Manual) | 45m | T-1-W0-002 | `npm run seed` inserts 20 coins with CoinGecko IDs and 5 default exchanges; verify with `sqlite3 app.db "SELECT COUNT(*) FROM coins"` returns 20 |
-| T-1-W0-004 | Position engine: calculatePositions() pure function with Decimal.js arithmetic | 2h | T-1-W0-001 | Function is exported and testable; no side effects; takes Transaction[] returns Position[] |
-| T-1-W0-005 | Sell validation: validateSellTransaction() with chronological reconstruction | 1.5h | T-1-W0-001 | Function validates sell against all existing transactions; rejects if holdings go negative at any date; returns { valid, reason } |
-| T-1-W0-006 | Unit tests (Wave 0): position engine, sell validation, Decimal.js arithmetic, pt-BR formatting | 3h | T-1-W0-004, T-1-W0-005 | `npm run test` runs >15 unit tests; coverage >90% for engine/ and validation/; includes worked example (1 BTC @ R$100k + R$500 fee = R$100,500 custo) |
-| T-1-W0-007 | Utilities: Decimal.js and Intl.NumberFormat formatters (pt-BR), input parsers for BRL/quantity | 1h | T-1-W0-001 | Utility functions exported; test formatBRL(new Decimal('1234.56')) → 'R$ 1.234,56'; test parseBRL('1.234,56') → Decimal('1234.56') |
-
-**Wave 0 Completion Criteria:**
-- [ ] `npm run dev` starts both frontend and backend
-- [ ] Database schema created with seed data
-- [ ] Position engine unit tests all pass (>15 tests)
-- [ ] All Decimal.js calculations verified exact (e.g., 3 × R$333.33 = exactly R$999.99, not R$999.9900000000001)
-- [ ] Sell validation catches negative-holdings edge case (buy 1 BTC on 7-5, sell 0.5 on 7-10, sell 0.5 on 7-5 → second sell rejected)
-- [ ] `npm run test` coverage report shows green for engine/, validation/
-
----
-
-### Wave 1: API Routes & Form Validation Logic
-
-Implement all transaction CRUD endpoints, the positions read endpoint, dropdown data endpoints, and currency conversion logic. No UI yet — all testable via REST calls.
-
-| Task ID | Title | Estimate | Blockers | UAT Criteria |
-| --- | --- | --- | --- | --- |
-| T-1-W1-001 | API: POST /api/transactions/buy endpoint (creates transaction, validates, calls position engine, returns updated positions) | 1.5h | T-1-W0-*, T-1-W0-006 | `curl -X POST http://localhost:3000/api/transactions/buy -H 'Content-Type: application/json' -d '{"date":"2026-07-08","coin_id":1,"quantity":"1","value_brl":"100000","fee_brl":"500","exchange_id":1}'` returns 200 with position including custo R$100,500 |
-| T-1-W1-002 | API: POST /api/transactions/sell endpoint (similar, includes sell validation before insert) | 1.5h | T-1-W1-001 | `curl -X POST /api/transactions/sell -d '{"date":"...","coin_id":1,"quantity":"0.5",...}'` returns 200; selling more than held returns 400 with reason; position recalculates with preço_médio unchanged |
-| T-1-W1-003 | API: PATCH /api/transactions/:id endpoint (fetch by id, delete, reinsert with new values, recalculate all positions) | 1.5h | T-1-W1-001, T-1-W1-002 | `curl -X PATCH /api/transactions/1 -d '{"quantity":"2",...}'` returns 200; both PositionTable and TransactionHistory must invalidate cache |
-| T-1-W1-004 | API: DELETE /api/transactions/:id endpoint (delete, recalculate positions, return updated state) | 1h | T-1-W1-003 | `curl -X DELETE /api/transactions/1` returns 200; positions for that coin recalculate; if last transaction deleted, coin row removed from positions |
-| T-1-W1-005 | API: GET /api/positions endpoint (calls calculatePositions on all transactions, formats with Decimal.js, returns) | 1h | T-1-W1-001 | `curl http://localhost:3000/api/positions` returns JSON: `[{coin_id: 1, symbol: "BTC", quantity: "1", preco_medio: "100500", custo_total: "100500"}]`; all amounts are strings |
-| T-1-W1-006 | API: GET /api/transactions endpoint (returns all transactions in date asc order, paginated or all) | 45m | T-1-W1-001 | `curl /api/transactions` returns array sorted by date asc, secondary by created_at; includes all fields (date, type, coin, qty, value, fee, exchange) |
-| T-1-W1-007 | API: GET /api/coins, GET /api/exchanges endpoints (dropdown data sources) | 45m | T-1-W0-002 | `curl /api/coins` returns array of {id, symbol, name, coingecko_id}; `curl /api/exchanges` returns array of {id, name} |
-| T-1-W1-008 | API: POST /api/coins (add new coin with CoinGecko ID), POST /api/exchanges (add new exchange) | 1h | T-1-W1-007 | `curl -X POST /api/coins -d '{"symbol":"DOGE","name":"Dogecoin","coingecko_id":"dogecoin"}'` returns 200; coin appears in GET /api/coins |
-| T-1-W1-009 | Currency conversion helper: fetch historical USDT→BRL rate from CoinGecko for transaction date (D-06) | 1.5h | T-1-W0-001 | Helper function exported; test: fetch rate for 2026-07-01 returns number > 0; fallback to current rate if historical unavailable; smoke test validates endpoint works |
-| T-1-W1-010 | Form validation functions (TypeScript): date not future, quantity > 0, required fields all present, Decimal.js parsing | 1h | T-1-W0-001 | Functions exported; test suite covers: valid buy (passes), missing coin (fails), quantity = 0 (fails), date in future (fails) |
-| T-1-W1-011 | Integration tests (Wave 1): CRUD endpoints, position recalculation, sell validation edge case (chronological reconstruction) | 2h | T-1-W1-001 through T-1-W1-010 | `npm run test:integration` runs 10+ tests; all CRUD operations tested end-to-end with database; edge case: buy 7-10, sell 0.5 on 7-5, sell 0.5 on 7-05 → second sell rejected |
-
-**Wave 1 Completion Criteria:**
-- [ ] All CRUD endpoints respond and mutations update database correctly
-- [ ] Position engine called after every transaction; positions accurate
-- [ ] Sell validation blocks negative holdings (chronological reconstruction verified)
-- [ ] CoinGecko historical rate fetch works or falls back gracefully
-- [ ] Form validation functions reject invalid inputs
-- [ ] Integration tests all pass; `npm run test:integration` green
-
----
-
-### Wave 2: React Components & Form UI
-
-Build the UI layer: PositionTable, TransactionHistory, TransactionForm modal, CoinDropdown, ExchangeDropdown, CurrencyInput. Wire to TanStack Query. Integrate pt-BR formatting.
-
-| Task ID | Title | Estimate | Blockers | UAT Criteria |
-| --- | --- | --- | --- | --- |
-| T-1-W2-001 | Setup TanStack Query v5: install, QueryClientProvider in App.tsx, configure staleTime=60s, gcTime=10m | 45m | T-1-W0-001 | App.tsx renders QueryClientProvider wrapper; verify in React DevTools that query cache is present |
-| T-1-W2-002 | PositionTable component: table with columns Symbol | Quantity | Preço Médio | Custo Total | fetches from GET /api/positions via TanStack Query | 1.5h | T-1-W2-001, T-1-W1-005 | Component renders rows for each coin holding; quantities and amounts display in pt-BR format (comma decimal); shows loading state; refetches on mutation |
-| T-1-W2-003 | TransactionHistory component: table with columns Data | Tipo | Moeda | Quantidade | Valor | Taxa | Exchange | Ações | fetches from GET /api/transactions | 1.5h | T-1-W2-001, T-1-W1-006 | Rows display in chronological order; pt-BR formatting; edit/delete action buttons present; shows loading state |
-| T-1-W2-004 | TransactionForm modal (buy tab): date input | coin dropdown | quantity input | value (BRL or USDT selector) | fee input | exchange dropdown | submit/cancel buttons | 2h | T-1-W2-001, T-1-W1-001 | Modal opens/closes; form fields bind to state; submit calls POST /api/transactions/buy; handles Decimal.js parsing of inputs (comma decimals) |
-| T-1-W2-005 | TransactionForm modal (sell tab): date | coin | quantity | value-received (display only, Phase 2) | fee | exchange; sell validation feedback | 1h | T-1-W2-004 | Sell tab mirrors buy; form rejects sells that violate validation (API 400 error shown in form) |
-| T-1-W2-006 | CoinDropdown component: searchable dropdown fetching from GET /api/coins, "add new coin" button at bottom | 1.5h | T-1-W2-001, T-1-W1-007 | Dropdown renders coin list; search filters by symbol/name; selection returns coin.id; "add coin" button opens lightweight form |
-| T-1-W2-007 | ExchangeDropdown component: similar, fetches GET /api/exchanges, "add new exchange" button | 1h | T-1-W2-006, T-1-W1-007 | Dropdown renders exchange list; "add exchange" button opens form; selection returns exchange.id |
-| T-1-W2-008 | CurrencyInput component: toggle BRL | USDT; if USDT selected, shows fetched rate + calculated BRL amount; manual override input | 1.5h | T-1-W2-001, T-1-W1-009 | Component renders radio or toggle for BRL/USDT; USDT triggers rate fetch; displays rate with timestamp; override input allows manual entry |
-| T-1-W2-009 | Formatting utilities integration: pt-BR display (Intl.NumberFormat) and input parsing (comma→dot) in all form inputs and table cells | 1h | T-1-W2-002 through T-1-W2-008 | All currency fields display as R$ 1.234,56; all quantity fields display with comma decimal; user can type 1.234,56 and it parses correctly |
-| T-1-W2-010 | TanStack Query mutation hooks: useCreateTransaction, useEditTransaction, useDeleteTransaction (each invalidates positions + transactions) | 1.5h | T-1-W2-001, T-1-W1-001 through T-1-W1-004 | Hooks exported; mutations integrate into form submit; on success, cache invalidates and tables refetch automatically |
-| T-1-W2-011 | App.tsx layout: position table on top, transaction history below, "Nova transação" button floating or top-right | 1h | T-1-W2-002, T-1-W2-003 | Single-screen layout renders; button launches TransactionForm modal; responsive (works on tablet, not just desktop) |
-| T-1-W2-012 | Component integration tests: form submission, error handling, dropdown selection, pt-BR formatting in rendered output | 1.5h | T-1-W2-002 through T-1-W2-011 | `npm run test` includes component tests; form submits, API error shows in UI, dropdown opens and selects, formatted values match locale |
-
-**Wave 2 Completion Criteria:**
-- [ ] App.tsx renders and is interactive (no console errors)
-- [ ] PositionTable and TransactionHistory tables display sample data (manually seeded)
-- [ ] TransactionForm modal opens/closes and form fields bind to state
-- [ ] All input fields accept pt-BR format (comma decimals) and parse correctly
-- [ ] All displayed amounts and quantities in pt-BR format
-- [ ] TanStack Query DevTools shows query cache with correct keys
-- [ ] Component tests pass; `npm run test` green for components/
-
----
-
-### Wave 3: Modal Integration, Empty State, End-to-End Smoke Test, Polish
-
-Final wave: wire up the form modal to the rest of the app, add the empty state UI, run end-to-end smoke tests, polish UX.
-
-| Task ID | Title | Estimate | Blockers | UAT Criteria |
-| --- | --- | --- | --- | --- |
-| T-1-W3-001 | Wire TransactionForm modal: "Nova transação" button opens modal, form submit posts to API, on success closes modal + invalidates cache, form clears | 1.5h | T-1-W2-010, T-1-W2-011 | Button click opens modal; form submission succeeds; new transaction appears in table immediately; modal closes; button is clickable again |
-| T-1-W3-002 | Edit mode: TransactionHistory edit button opens TransactionForm with prefilled fields; PATCH endpoint sends updated values; positions recalculate | 1.5h | T-1-W3-001, T-1-W1-003 | Edit button click opens modal with prefilled form; submit calls PATCH /api/transactions/:id; transaction updates in table |
-| T-1-W3-003 | Delete confirmation dialog: delete button shows "Tem certeza?" confirmation; on confirm calls DELETE /api/transactions/:id; on cancel closes dialog | 1h | T-1-W3-002, T-1-W1-004 | Delete button triggers confirmation modal; confirming deletes transaction; transaction row removed from table |
-| T-1-W3-004 | Empty state: with zero transactions, show friendly message "Nenhuma transação registrada" with prominent "Lançar primeira transação" button (D-13) | 1h | T-1-W2-002, T-1-W2-011 | When no transactions exist, position table hidden and empty state shown; button launches form; form submit hides empty state and shows table |
-| T-1-W3-005 | CoinGecko historical rate smoke test: add integration test that fetches USDT→BRL for a past date, validates fallback to current rate | 45m | T-1-W1-009 | Test in Wave 3 smoke suite; endpoint responds with rate > 0; fallback to current rate if historical unavailable; no transaction is blocked by API failure |
-| T-1-W3-006 | End-to-end smoke test: user records buy, sees it in table, edits it, sees change, sells half, sees position recalculated, deletes sell, sees original quantity restored | 1.5h | T-1-W3-001 through T-1-W3-005 | `npm run test:e2e` or manual walkthrough: record 1 BTC @ R$100k + R$500 fee; verify R$100,500 custo; sell 0.5; verify preço_médio unchanged, custo halved; delete sell; verify original position |
-| T-1-W3-007 | Styling & UX polish: responsive layout (mobile/tablet), hover states, loading spinners, error toast notifications, accessibility (ARIA labels, keyboard nav) | 2h | T-1-W2-011 | App is usable on mobile viewport; form fields have labels; buttons are keyboard-accessible; errors shown clearly to user |
-| T-1-W3-008 | Verification gate: all 5 ROADMAP success criteria tested (automated or manual); document in `.planning/phases/01-*/01-VERIFICATION.md` | 1h | All tasks | See success_criteria section below; each criterion has a test command or manual verification step |
-| T-1-W3-009 | Final integration test suite: all CRUD operations, position engine accuracy, pt-BR formatting, CoinGecko rate fallback | 1h | All tasks | `npm run test` returns all tests green; coverage >80% for src/engine/, src/server/; `npm run build` succeeds with no warnings |
-
-**Wave 3 Completion Criteria:**
-- [ ] Modal form wired; submit, edit, delete all work end-to-end
-- [ ] Empty state displays when no transactions; disappears after first entry
-- [ ] CoinGecko historical rate test passes or falls back gracefully
-- [ ] End-to-end user flow testable (record → edit → sell → delete → recalculate)
-- [ ] App responsive and accessible
-- [ ] All tests pass; coverage >80%
-- [ ] Build succeeds; no console errors or warnings in dev mode
-- [ ] All 5 ROADMAP success criteria have passing tests
-
----
-
-## Rationale: Why This Wave Order?
-
-1. **Wave 0 first:** Position engine is the correctness foundation. Unit tests validate the algorithm before any UI touches it. Schema is locked down; seed data is available for manual testing.
-
-2. **Wave 1 parallelizable with Wave 0:** CRUD endpoints can be built as Wave 0 completes. Endpoints are tested via REST; no React needed yet. Form validation logic is pure functions, testable independently.
-
-3. **Wave 2 parallelizable with Wave 1:** React components fetch from Wave 1 endpoints. TanStack Query wires the data flow. Components are built in isolation and integrated in Wave 3.
-
-4. **Wave 3 last:** Modal integration and end-to-end flow depend on all other pieces. Smoke tests verify the whole system. Polish and accessibility happen last (low risk of breaking core logic).
-
-**File conflicts minimized:** Wave 0 owns `src/engine/`, `src/db/`. Wave 1 owns `src/server/`. Wave 2 owns `src/components/`. Wave 3 updates `src/App.tsx` and runs tests. No two waves modify the same files.
-
----
-
-## Task Dependency Graph
-
-```
-T-1-W0-001 (scaffold)
-  ├─ T-1-W0-002 (schema) ── T-1-W0-003 (seed)
-  ├─ T-1-W0-004 (position engine)
-  │  └─ T-1-W0-005 (sell validation)
-  │     └─ T-1-W0-006 (unit tests)
-  └─ T-1-W0-007 (utilities)
-     └─ T-1-W1-010 (form validation)
-        └─ T-1-W2-004 (form component)
-
-T-1-W1-001 (POST /buy)
-  ├─ T-1-W1-002 (POST /sell)
-  ├─ T-1-W1-003 (PATCH /:id)
-  ├─ T-1-W1-004 (DELETE /:id)
-  └─ T-1-W1-005 (GET /positions)
-     └─ T-1-W2-002 (PositionTable)
-        └─ T-1-W3-001 (wire modal)
-
-T-1-W2-001 (TanStack Query setup)
-  ├─ T-1-W2-002 (PositionTable)
-  ├─ T-1-W2-003 (TransactionHistory)
-  └─ T-1-W2-010 (mutation hooks)
-     └─ T-1-W3-001 (wire modal)
-```
-
----
-
-## Execution Waves & Parallelization
-
-| Wave | Concurrent Tasks | Estimated Duration | Dependency |
+| # | ROADMAP Success Criterion | Delivered by | Proven by (test) |
 | --- | --- | --- | --- |
-| **0** | T-1-W0-001, 002, 004, 007 (scaffold + core logic) | 4h | None |
-| — | T-1-W0-003, 005, 006 (seed + validation + tests) | 3.5h | Wave 0 in progress |
-| **1** | T-1-W1-001, 005, 007, 009, 010 (endpoints + utilities) | 5h | Wave 0 done |
-| — | T-1-W1-002, 003, 004, 006, 008, 011 (more endpoints + integration tests) | 5.5h | Wave 1 in progress |
-| **2** | T-1-W2-001, 006, 007 (setup + dropdowns) | 3h | Wave 1 done |
-| — | T-1-W2-002, 003, 004, 005, 010 (tables + form) | 5h | Wave 2 in progress |
-| — | T-1-W2-008, 009, 011, 012 (currency + formatting + layout + tests) | 5h | Wave 2 in progress |
-| **3** | T-1-W3-001, 002, 003 (wire modal) | 4h | Wave 2 done |
-| — | T-1-W3-004, 005, 006, 007, 008, 009 (empty state + tests + polish) | 6h | Wave 3 in progress |
+| 1 | Record a buy (date, coin, qty, BRL, fee, exchange) and it appears in history | W1-1, W1-2 | `src/server/__tests__/transactions.integration.test.ts` (buy -> 201, GET /transactions includes it) + human step 3-4 |
+| 2 | Sell drops qty + custo proportionally, preco medio EXACTLY unchanged | W0-4, W0-5, W2-1, W2-2 | `src/engine/__tests__/positionEngine.test.ts` (sell case c) + integration sell test + human step 6 |
+| 3 | Edit or delete any transaction -> all positions recalculate immediately | W3-1, W3-2 | integration edit/delete recomputation tests (delete sell restores 1,5 BTC) + human step 8 |
+| 4 | Position row shows qty/preco medio/custo; 1 BTC @ R$100k + R$500 = R$100.500 | W0-4, W0-5, W1-2 | `positionEngine.test.ts` worked-example case (a) + human step 4 |
+| 5 | History chronological + shows originating exchange for every entry | W1-1, W1-2 | integration test (sorted date asc + exchange join) + human steps 4-5 |
 
-**Total Estimate:** ~40h (1-week sprint at 8h/day). Assumes one developer working sequentially through waves; parallelization possible if multiple developers.
+Additional locked-behavior tests: chronological oversell rejection (D-07/D-08) in `validation.test.ts` + W2-1 integration; Decimal precision (R$333,33 x3 = R$999,99) in `positionEngine.test.ts`; CoinGecko fallback smoke test (D-06) in W2-1 integration.
 
 ---
 
-## Exit Criteria: Phase 1 Complete
+## Artifacts This Phase Produces
 
-Map each to the 5 ROADMAP success criteria:
+**Database (src/db/):** `schema.ts` (tables: `transactions`, `coins`, `exchanges`; indexes `idx_transactions_coin`, `idx_transactions_date`), `client.ts` (better-sqlite3 + Drizzle), `seed.ts`.
 
-### Success Criterion 1: User can record a buy transaction and it appears in the transaction history
+**Engine + libs (src/engine/, src/lib/):** `types.ts` (Transaction, Position); `positionEngine.ts` -> `calculatePositions()`; `validation.ts` -> `validateSellTransaction()`; `lib/decimal.ts`; `lib/format.ts` (`formatBRL`, `formatQuantity`, `parseBRLInput`, `parseQuantityInput`).
 
-- **Test:** Manual or automated end-to-end test
-  ```bash
-  npm run test:e2e 2>/dev/null | grep -c "buy.*appears.*history" || \
-  (curl -X POST http://localhost:3000/api/transactions/buy \
-    -d '{"date":"2026-07-08","coin_id":1,"quantity":"1","value_brl":"100000","fee_brl":"500","exchange_id":1}' && \
-   sleep 1 && curl http://localhost:3000/api/transactions | grep -q "2026-07-08")
-  ```
-- **Done when:** New transaction visible in TransactionHistory table within 1 second of form submission; all fields (date, coin, qty, fee, exchange) display correctly
+**API (src/server/):** Hono app `index.ts`; routes — `POST /api/transactions/buy`, `POST /api/transactions/sell`, `PATCH /api/transactions/:id`, `DELETE /api/transactions/:id`, `GET /api/transactions`, `GET /api/positions`, `GET /api/coins`, `POST /api/coins`, `GET /api/exchanges`, `POST /api/exchanges`, `GET /api/rate`, `GET /api/health`; `coingecko.ts` (historical/current rate + fallback).
 
-### Success Criterion 2: User can record a sell transaction; coin's quantity and custo drop, preço médio unchanged
+**UI (src/):** `App.tsx` (single-screen layout); components — `PositionTable`, `TransactionHistory`, `TransactionForm` (modal, buy+sell), `CoinDropdown`, `ExchangeDropdown`, `CurrencyInput`, `EmptyState`, `DeleteConfirmDialog`; `hooks/useTransactions.ts` (query + mutation hooks); `api/client.ts`.
 
-- **Test:** Unit test of position engine + integration test of API
-  ```bash
-  npm run test -- src/engine/__tests__/sell-logic.test.ts 2>/dev/null | grep -q "sell.*preco_medio.*unchanged"
-  ```
-- **Done when:** Test passes; manual verification: record 1 BTC @ R$100k + R$500 fee (custo R$100,500), then sell 0.5 BTC; preço_médio remains R$100,500, custo drops to R$50,250
+**Tests:** `src/engine/__tests__/positionEngine.test.ts`, `src/engine/__tests__/validation.test.ts`, `src/lib/__tests__/format.test.ts`, `src/server/__tests__/transactions.integration.test.ts`.
 
-### Success Criterion 3: User can edit or delete any transaction; positions recalculate immediately
-
-- **Test:** Integration test of PATCH + DELETE endpoints
-  ```bash
-  npm run test:integration 2>/dev/null | grep -c "edit.*delete.*recalculate"
-  ```
-- **Done when:** Edit changes transaction values and positions update; delete removes transaction and positions recalculate; both changes visible in UI within 1 second (TanStack Query refetch)
-
-### Success Criterion 4: Per-coin position view shows quantity, preço médio, custo (worked example: 1 BTC @ R$100k + R$500 fee = R$100,500 custo)
-
-- **Test:** Unit test of calculatePositions()
-  ```bash
-  npm run test -- src/engine/__tests__/position.test.ts 2>/dev/null | grep -q "1.*BTC.*100.*500.*custo"
-  ```
-- **Done when:** Test passes; PositionTable component renders row for BTC with custo_total = 100500; manual check: inspect table cell value
-
-### Success Criterion 5: Transaction history in chronological order, showing originating exchange
-
-- **Test:** Integration test of transaction listing
-  ```bash
-  npm run test:integration 2>/dev/null | grep -q "chronological.*exchange"
-  ```
-- **Done when:** TransactionHistory rows sorted by date ascending; exchange column populated from referenced exchanges table; manual check: insert 3 transactions out of date order, verify table sorts correctly
+**Config:** `package.json`, `vite.config.ts`, `vitest.config.ts`, `drizzle.config.ts`, `.env.example` (COINGECKO_API_KEY optional).
 
 ---
 
-## Test Strategy
+<threat_model>
+## Trust Boundaries
 
-### Unit Tests (Wave 0, 1)
+| Boundary | Description |
+|----------|-------------|
+| Browser (React) -> Hono API | User-supplied transaction data (amounts, dates, coin/exchange ids) crosses here; must be validated server-side |
+| Hono API -> SQLite (Drizzle) | Financial PII persisted locally; parameterized access only |
+| Hono API -> CoinGecko (outbound) | Untrusted external response for USDT->BRL rate; must degrade gracefully and never block entry |
 
-**Framework:** Vitest 3.x (zero-config with Vite)
+## STRIDE Threat Register
 
-**Test categories:**
+| Threat ID | Category | Component | Severity | Disposition | Mitigation Plan |
+|-----------|----------|-----------|----------|-------------|-----------------|
+| T-01-01 | Tampering | POST/PATCH transaction amount + date fields | high | mitigate | Server-side validation (quantity>0, date not future, required fields) + Drizzle parameterized queries; amounts parsed as Decimal strings, never interpolated (W1-1, W3-1) |
+| T-01-02 | Tampering | Sell endpoint (negative holdings) | high | mitigate | Authoritative chronological `validateSellTransaction()` on the server before insert; client warning is advisory only (W2-1) |
+| T-01-03 | Tampering | Decimal precision loss on money math | high | mitigate | Decimal.js for all arithmetic + TEXT storage; unit test 3 x R$333,33 = R$999,99 exactly (W0-5) |
+| T-01-04 | Information Disclosure | API error responses | medium | mitigate | Return safe validation messages only; do not leak stack traces / internal state (V7) (W1-1) |
+| T-01-05 | Denial of Service | CoinGecko outage/rate-limit blocking entry | medium | mitigate | Rate fallback historical->current->'unavailable' + always-available manual override; transaction entry never depends on the API (W2-1, W2-2) |
+| T-01-06 | Information Disclosure | Local SQLite financial file | low | accept | Single-user local-first app; document restricting file perms (600) in the summary; no network exposure in Phase 1 (V8/V14) |
+| T-01-SC | Tampering | npm dependency installs | high | mitigate | Install only the exact packages locked by the project owner in CLAUDE.md Technology Stack (owner-approved, all mainstream: React/Vite/Hono/Drizzle/better-sqlite3/decimal.js/TanStack Query/Tailwind/Vitest); run `npm audit` after install and report results; no package added outside the locked table (W0-1) |
+</threat_model>
 
-1. **Position engine** (`src/engine/__tests__/position.test.ts`): Core algorithm
-   - Buy 1 BTC @ R$100k + R$500 fee → quantity=1, custo=R$100,500, preço_médio=R$100,500 ✓
-   - Buy 0.5 BTC @ R$60k + R$300 fee → quantity=1.5, custo=R$160,800, preço_médio=R$107,200 ✓
-   - Sell 0.5 BTC → quantity=1.0, custo=R$107,200, preço_médio=R$107,200 (unchanged) ✓
-   - Edge case: sell zero quantity → rejected ✓
-   - Edge case: empty transaction list → empty positions array ✓
+<verification>
+- `npm run test:run` — full Vitest suite green (engine, validation, formatting, integration).
+- Coverage >=80% for src/engine, src/lib, src/server (>=90% engine/lib).
+- `npm run build` — clean production build, no errors.
+- `npm run dev` — both processes start; app renders and is interactive with no console errors.
+- Human walkthrough (W3-4) approves the 9-step success thread.
+</verification>
 
-2. **Sell validation** (`src/engine/__tests__/validation.test.ts`): Chronological reconstruction
-   - Buy 1 BTC on 7-10, sell 0.5 on 7-05, sell 0.5 on 7-05 → second sell rejected (negative holdings) ✓
-   - Sell quantity greater than held → rejected ✓
-   - Valid sell → accepted ✓
+<success_criteria>
+Phase 1 is COMPLETE when:
+- All 5 ROADMAP success criteria pass per the mapping table above (automated test + human step).
+- The position engine is provably correct: worked example, sell-preserves-preco-medio, Decimal precision, and chronological oversell rejection all pass.
+- CRUD (buy/sell/edit/delete) works end-to-end from the modal with live table recomputation and no stored derived values.
+- USDT->BRL conversion degrades gracefully with a manual override (D-06); a missing rate never blocks entry.
+- pt-BR formatting is consistent; coverage + build gates green; human checkpoint approved.
+</success_criteria>
 
-3. **Decimal.js correctness** (`src/engine/__tests__/decimal.test.ts`): Precision
-   - 3 × R$333.33 = exactly R$999.99 (not R$999.9900000000001) ✓
-   - 0.1 BTC + 0.05 BTC = 0.15 BTC ✓
-   - R$1.01 + R$2.02 + R$3.03 = R$6.06 ✓
-
-4. **Formatting** (`src/utils/__tests__/formatting.test.ts`): pt-BR locale
-   - formatBRL('100000') → 'R$ 100.000,00' ✓
-   - formatBRL('1234.56') → 'R$ 1.234,56' ✓
-   - parseBRL('1.234,56') → Decimal('1234.56') ✓
-   - parseQuantity('0,00314159') → Decimal('0.00314159') ✓
-
-5. **Form validation** (`src/components/__tests__/validation.test.ts`): Input rules
-   - quantity > 0 → valid ✓
-   - quantity ≤ 0 → invalid ✓
-   - date in future → invalid ✓
-   - required fields empty → invalid ✓
-
-### Integration Tests (Wave 1, 2, 3)
-
-**Test framework:** Vitest + node fetch (no external server startup needed; API runs in-memory or via test database)
-
-**Test categories:**
-
-1. **CRUD endpoints** (`src/__tests__/transactions.integration.test.ts`)
-   - POST /api/transactions/buy → 201, transaction in database ✓
-   - POST /api/transactions/sell → 201 (valid) or 400 (invalid sell) ✓
-   - PATCH /api/transactions/:id → 200, transaction updated ✓
-   - DELETE /api/transactions/:id → 200, transaction removed ✓
-   - GET /api/positions → 200, positions match position engine ✓
-   - GET /api/transactions → 200, sorted by date asc ✓
-
-2. **Position accuracy** (`src/__tests__/positions.integration.test.ts`)
-   - After 3 buys, position engine matches expected custo and preço_médio ✓
-   - After edit, positions recalculated ✓
-   - After delete, positions recalculated ✓
-
-3. **CoinGecko rate fetch** (`src/__tests__/coingecko.integration.test.ts`)
-   - Fetch USDT→BRL for past date → returns number > 0 ✓
-   - Historical unavailable → fallback to current rate ✓
-   - Rate unavailable → user can override manually ✓
-
-4. **Component rendering** (`src/components/__tests__/integration.test.ts`)
-   - PositionTable renders rows for each coin ✓
-   - TransactionHistory renders rows in date order ✓
-   - Form submit creates transaction ✓
-   - Edit button prefills form ✓
-   - Delete button shows confirmation ✓
-
-### End-to-End Smoke Test (Wave 3)
-
-**Manual walkthrough or automated:**
-
-1. Start app: `npm run dev`
-2. Click "Nova transação" → modal opens ✓
-3. Enter buy: date 2026-07-01, 1 BTC, R$100,000, fee R$500, Binance
-4. Submit → position table shows 1 BTC, preço_médio R$100,500, custo R$100,500 ✓
-5. Transaction history shows the buy entry ✓
-6. Click edit → form prefills; change quantity to 1.2 BTC
-7. Submit → position table updates to 1.2 BTC ✓
-8. Click delete, confirm → position table reverts to 1 BTC ✓
-9. Record sell: 0.5 BTC for R$55,000
-10. Position table: 0.5 BTC, preço_médio R$100,500 (unchanged), custo R$50,250 ✓
-11. Delete sell → position reverts to 1 BTC ✓
-
-**Pass criteria:** All steps succeed; no console errors; UI responsive (< 1 second for actions).
-
----
-
-## Known Risks & Mitigations
-
-### Risk 1: Decimal.js Precision Loss in Edge Cases
-
-**Risk:** Rounding errors in fractional crypto quantities (e.g., 0.00314159 BTC).
-
-**Mitigation:** 
-- Unit tests include extreme values (8 decimal places) 
-- All SQLite storage is TEXT; parsing wraps in `new Decimal()` 
-- All arithmetic uses Decimal methods (no toNumber() → Number operations)
-- Test case: `3 × R$333.33 = R$999.99 exactly` (would fail if using Number)
-
-### Risk 2: CoinGecko Historical Rate Unavailability (D-06)
-
-**Risk:** API fails when user enters USDT value; transaction blocked.
-
-**Mitigation:**
-- Fallback to current rate (same API call without date param)
-- Fallback to manual override (user can enter BRL amount directly)
-- User can always record transaction without API; no hard dependency
-- Smoke test in Wave 3 validates fallback path
-
-### Risk 3: Sell Validation Not Catching Negative Holdings
-
-**Risk:** Chronological reconstruction logic has bug; user sells more than held at some point in time.
-
-**Mitigation:**
-- Unit tests include edge case: buy 7-10, insert sell 7-05, insert sell 7-05 (second sell should be rejected)
-- Integration test with real database
-- Manual test: try to sell before a buy date
-
-### Risk 4: Position Engine Stored in Database (Antipattern)
-
-**Risk:** Positions cached in DB; edit/delete doesn't update cache; positions become stale.
-
-**Mitigation:**
-- Schema design does NOT include preço_médio or custo_total columns; only transactions table has raw data
-- Position engine is a pure function: no side effects, no state
-- Read endpoint calls position engine on every request (no DB cache)
-- Integration tests verify edit/delete → recomputation
-
-### Risk 5: pt-BR Formatting Breaks on Edge Values
-
-**Risk:** Very large values (e.g., R$ 999,999,999.99) or very small (e.g., 0.00000001 BTC) format incorrectly.
-
-**Mitigation:**
-- Intl.NumberFormat is widely supported and tested
-- Custom parser handles edge cases (commas, dots, scientific notation)
-- Unit tests include boundary values
-
-### Risk 6: Fee Not Included in Custo (Pitfall 3 from RESEARCH.md)
-
-**Risk:** User records buy with fee, but fee is ignored in custo de aquisição.
-
-**Mitigation:**
-- Unit test: "1 BTC @ R$100k + R$500 fee = R$100,500 custo" is canonical
-- Test fails if fee not summed
-- API validation sums fee into transaction.value_brl before position calculation
-
-### Risk 7: Modal Form Doesn't Close After Submit
-
-**Risk:** User submits form, transaction created, but modal remains open and form doesn't clear.
-
-**Mitigation:**
-- Test: form submit success closes modal and clears fields
-- TanStack Query mutation success callback triggers modal close
-- Manual test: submit form, verify modal closes and button is clickable again
-
----
-
-## Success Criteria Summary
-
-**All of the following must be true for Phase 1 to be COMPLETE:**
-
-1. ✓ User can record a buy transaction with date, coin, quantity, BRL amount, fee, exchange — it appears in transaction history
-2. ✓ User can record a sell transaction; coin's quantity and custo drop proportionally, preço médio unchanged (Brazilian rule)
-3. ✓ User can edit or delete any transaction and all positions recalculate immediately
-4. ✓ Per-coin position row displays quantity, preço médio, custo de aquisição (worked example: 1 BTC @ R$100k + R$500 fee = R$100,500)
-5. ✓ Transaction history in chronological order, showing originating exchange
-
-**Testing checklist:**
-- [ ] Unit tests: position engine, sell validation, Decimal.js, formatting — all pass, >90% coverage
-- [ ] Integration tests: CRUD endpoints, positions, CoinGecko fallback — all pass
-- [ ] Component tests: form, tables, dropdowns, modal — all pass
-- [ ] End-to-end smoke test: record → edit → sell → delete → verify positions — manual pass
-- [ ] Build succeeds: `npm run build` → no errors, optimized bundles created
-- [ ] No console errors or warnings in dev mode
-
----
-
-## Output Artifacts
-
-Upon completion of Phase 1, the following files will exist:
-
-**Backend:**
-- `src/server/index.ts` — Hono app entry point, routes registration
-- `src/server/routes/transactions.ts` — CRUD endpoints
-- `src/server/routes/positions.ts` — positions endpoint
-- `src/server/routes/coins.ts` — coins list and add endpoints
-- `src/server/routes/exchanges.ts` — exchanges list and add endpoints
-- `src/db/schema.ts` — Drizzle schema (transactions, coins, exchanges)
-- `src/db/migrations/` — drizzle-kit generated migrations
-- `src/engine/positionEngine.ts` — calculatePositions() pure function
-- `src/engine/validation.ts` — validateSellTransaction()
-- `src/engine/__tests__/` — unit tests
-
-**Frontend:**
-- `src/App.tsx` — main layout (PositionTable + TransactionHistory + "Nova transação" button)
-- `src/components/PositionTable.tsx` — position summary table
-- `src/components/TransactionHistory.tsx` — transaction list with edit/delete
-- `src/components/TransactionForm.tsx` — modal form for buy/sell entry and edit
-- `src/components/CoinDropdown.tsx` — searchable coin selector
-- `src/components/ExchangeDropdown.tsx` — searchable exchange selector
-- `src/components/CurrencyInput.tsx` — BRL/USDT toggle with rate display
-- `src/components/__tests__/` — component unit tests
-- `src/utils/formatting.ts` — Intl.NumberFormat display + Decimal.js parsers (pt-BR)
-- `src/utils/coingecko.ts` — historical rate fetch helper
-- `src/__tests__/` — integration tests
-
-**Configuration:**
-- `package.json` — updated with all dependencies (Decimal.js, Drizzle, better-sqlite3, TanStack Query, Vitest, etc.)
-- `.env.example` — CoinGecko API key (optional for Demo tier)
-- `vite.config.ts` — Vite config with React plugin
-- `vitest.config.ts` — Vitest config with coverage thresholds
-
-**Documentation:**
-- `.planning/phases/01-transaction-management-position-engine/01-VERIFICATION.md` — test evidence for all 5 success criteria
-
----
-
-## Next Phase Gate
-
-**Before proceeding to Phase 2 (Portfolio Dashboard + Market Prices):**
-
-1. Verify all 5 ROADMAP Phase 1 success criteria are tested and passing
-2. Check: position engine is provably correct (unit tests, edge cases, worked example)
-3. Check: CoinGecko historical rate fetch works or falls back gracefully
-4. Check: pt-BR formatting is consistent across all fields
-5. Review: VERIFICATION.md documents test evidence for each criterion
-
-**Phase 2 will plug into:**
-- Coins table's coingecko_id column (already present, seeded in Phase 1)
-- Positions endpoint (will be enriched with live prices)
-- TanStack Query caching layer (will add price polling)
-
----
-
-*Phase 1 Plan created: 2026-07-08*
-*Planned completion: 40 hours (1-week sprint)*
-*Mode: mvp (vertical slices, end-to-end per wave)*
+<output>
+Create `.planning/phases/01-transaction-management-position-engine/01-01-SUMMARY.md` when done (record: npm audit result, coverage numbers, the Success-Criteria->test evidence, and the note that a nullable `cnpj` column can be ALTERed onto `exchanges` in Phase 3 without a destructive migration).
+</output>

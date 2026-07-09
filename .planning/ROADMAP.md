@@ -17,7 +17,7 @@ Three phases that build from the correctness foundation outward. Phase 1 deliver
 ## Phase Details
 
 ### Phase 1: Transaction Management + Position Engine
-**Goal**: Users can record buy and sell transactions and immediately see their correct preço médio and custo de aquisição per coin, computed per Brazilian tax rules using Decimal arithmetic.
+**Goal**: As a crypto investor tracking Brazilian taxes across several exchanges, I want to record my buy and sell transactions and instantly see the correct preço médio and custo de aquisição per coin, so that I have an accurate, consolidated cost basis computed to the Brazilian tax rules.
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: TX-01, TX-02, TX-03, TX-04, TX-05, TX-06, TX-07, POS-01, POS-02, POS-03
@@ -29,7 +29,7 @@ Three phases that build from the correctness foundation outward. Phase 1 deliver
   5. Transaction history is displayed in chronological order and shows the originating exchange for every entry
 **Plans**: 1 plan
 **Plan List**:
-- [ ] 01-01-PLAN.md — Scaffold + position engine + CRUD API + React UI (4 waves: foundation, API, components, integration)
+- [ ] 01-PLAN.md — Walking skeleton + pure position engine (tested) + buy/sell/edit/delete vertical slices + CRUD API + React UI (4 internal waves)
 **UI hint**: yes
 
 ### Phase 2: Portfolio Dashboard + Market Prices
