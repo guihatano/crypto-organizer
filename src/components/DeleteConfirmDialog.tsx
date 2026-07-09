@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 interface DeleteConfirmDialogProps {
   open: boolean
   description?: string
+  errorMessage?: string
   onConfirm: () => void
   onCancel: () => void
   isPending?: boolean
@@ -10,11 +11,15 @@ interface DeleteConfirmDialogProps {
 
 /**
  * Delete confirmation dialog (D-12): "Tem certeza?" — deletion only
- * happens on explicit confirm.
+ * happens on explicit confirm. When the server rejects the delete (e.g.
+ * CR-02's chronological non-negative-position guard), `errorMessage`
+ * surfaces it inline instead of the dialog silently closing with no
+ * feedback.
  */
 export function DeleteConfirmDialog({
   open,
   description,
+  errorMessage,
   onConfirm,
   onCancel,
   isPending,
@@ -48,6 +53,11 @@ export function DeleteConfirmDialog({
         <p className="mt-2 text-sm text-gray-600">
           {description ?? 'Esta transação será excluída e as posições serão recalculadas.'}
         </p>
+        {errorMessage && (
+          <p role="alert" className="mt-2 text-sm text-red-600">
+            {errorMessage}
+          </p>
+        )}
         <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"

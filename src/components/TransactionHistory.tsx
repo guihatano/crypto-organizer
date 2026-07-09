@@ -35,6 +35,18 @@ export function TransactionHistory({ transactions, onEdit }: TransactionHistoryP
     })
   }
 
+  function handleCancelDelete() {
+    setPendingDeleteId(null)
+    // Clear any previous error (e.g. CR-02's rejection message) so it
+    // doesn't reappear stale if the user opens the dialog for another row.
+    deleteTransaction.reset()
+  }
+
+  function handleRequestDelete(id: number) {
+    deleteTransaction.reset()
+    setPendingDeleteId(id)
+  }
+
   return (
     <>
       <table className="w-full text-left text-sm">
@@ -102,7 +114,7 @@ export function TransactionHistory({ transactions, onEdit }: TransactionHistoryP
                   <button
                     type="button"
                     className="cursor-pointer text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
-                    onClick={() => setPendingDeleteId(tx.id)}
+                    onClick={() => handleRequestDelete(tx.id)}
                   >
                     Excluir
                   </button>
@@ -115,9 +127,10 @@ export function TransactionHistory({ transactions, onEdit }: TransactionHistoryP
 
       <DeleteConfirmDialog
         open={pendingDeleteId != null}
-        onCancel={() => setPendingDeleteId(null)}
+        onCancel={handleCancelDelete}
         onConfirm={handleConfirmDelete}
         isPending={deleteTransaction.isPending}
+        errorMessage={deleteTransaction.error?.message}
       />
     </>
   )
