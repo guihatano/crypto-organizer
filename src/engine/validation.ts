@@ -1,6 +1,10 @@
 import { toDecimal, ZERO } from '../lib/decimal.ts'
 import type { CandidateSell, SellValidationResult, Transaction } from './types.ts'
 
+export interface NegativePoint {
+  date: string
+}
+
 interface ChronologicalEntry {
   date: string
   createdAt: string
@@ -84,4 +88,43 @@ export function validateSellTransaction(
   }
 
   return { valid: true }
+}
+
+/**
+ * Replays a coin's transaction ledger — as it would exist AFTER a proposed
+ * edit or delete has already been applied by the caller — in strict
+ * chronological order, and returns the first date at which running
+ * quantity would go negative, or null if the timeline never goes negative
+ * (D-07/D-08).
+ *
+ * Unlike validateSellTransaction (which reasons about inserting/editing ONE
+ * sell candidate against the rest of the ledger), this validates an
+ * already-assembled ledger snapshot. It exists because the invariant
+ * "position never goes negative at any point in time" can also be broken
+ * by editing a BUY's quantity/date down, or by deleting any transaction —
+ * mutation paths validateSellTransaction never sees, since it is only
+ * invoked on the sell side.
+ *
+ * PURE function: no I/O. Caller assembles `ledger`, already scoped to one
+ * coin and already reflecting the proposed change.
+ */
+export function findLedgerNegativePoint(ledger: Transaction[]): NegativePoint | null {
+  const sorted = [...ledger].sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1
+    if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1
+    return 0
+  })
+
+  let runningQuantity = ZERO
+
+  for (const entry of sorted) {
+    const qty = toDecimal(entry.quantity)
+    runningQuantity = entry.type === 'buy' ? runningQuantity.plus(qty) : runningQuantity.minus(qty)
+
+    if (runningQuantity.lt(0)) {
+      return { date: entry.date }
+    }
+  }
+
+  return null
 }

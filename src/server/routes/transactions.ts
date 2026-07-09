@@ -3,13 +3,17 @@ import { asc, eq } from 'drizzle-orm'
 import { db } from '../../db/client.ts'
 import { coins, exchanges, transactions } from '../../db/schema.ts'
 import { toDecimal } from '../../lib/decimal.ts'
-import { validateSellTransaction } from '../../engine/validation.ts'
+import { findLedgerNegativePoint, validateSellTransaction } from '../../engine/validation.ts'
 import { computeSerializedPositions, loadLedger } from './positions.ts'
 
 export const transactionsRoute = new Hono()
 
+// Brazil is UTC-3: from ~21:00 local onward, toISOString() has already
+// rolled to tomorrow's UTC date. The transaction `date` is the value used
+// for IR reporting, so "today" must be the user's local (BRT) calendar
+// date, not UTC (WR-01).
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 }
 
 interface BuyBody {
@@ -51,11 +55,16 @@ function validateCommonFields(body: BuyBody): string | null {
     return 'A quantidade deve ser maior que zero.'
   }
 
+  let valueDecimal
+  let feeDecimal
   try {
-    toDecimal(value_brl)
-    toDecimal(fee_brl)
+    valueDecimal = toDecimal(value_brl)
+    feeDecimal = toDecimal(fee_brl)
   } catch {
     return 'Valor ou taxa inválidos.'
+  }
+  if (valueDecimal.lt(0) || feeDecimal.lt(0)) {
+    return 'Valor e taxa não podem ser negativos.'
   }
 
   return null
@@ -243,9 +252,14 @@ transactionsRoute.patch('/:id', async (c) => {
     return c.json({ error: exchangeError }, 400)
   }
 
-  // Re-validate chronologically if the edited row is a sell (D-12). The
-  // ledger loaded here still contains the OLD version of this row;
-  // validateSellTransaction excludes it by id before replaying.
+  // Re-validate the full chronological timeline for this edit (D-07/D-08,
+  // D-12). If the edited row is itself a sell, reuse the candidate-based
+  // validator (preserves TX-02's existing tested behavior/messages).
+  // Otherwise (editing a BUY's date/quantity/coin), a chronological
+  // re-check is still required: reducing or delaying a buy can silently
+  // invalidate a later sell that already depended on it (CR-01) — a path
+  // validateSellTransaction alone never catches, since it only runs when
+  // the mutated row is a sell.
   if (existingRow.type === 'sell') {
     const sellValidation = validateSellTransaction(
       { id, date, coinId: coin_id, quantity: String(quantity) },
@@ -253,6 +267,22 @@ transactionsRoute.patch('/:id', async (c) => {
     )
     if (!sellValidation.valid) {
       return c.json({ error: sellValidation.reason }, 400)
+    }
+  } else {
+    const postEditLedger = loadLedger()
+      .filter((tx) => tx.id !== id)
+      .filter((tx) => tx.coinId === existingRow.coinId)
+      .concat(
+        coin_id === existingRow.coinId
+          ? [{ ...existingRow, date, coinId: coin_id, quantity: String(quantity) }]
+          : [],
+      )
+    const negativePoint = findLedgerNegativePoint(postEditLedger)
+    if (negativePoint) {
+      return c.json(
+        { error: `Esta alteração deixaria a posição negativa em ${negativePoint.date}.` },
+        400,
+      )
     }
   }
 
@@ -291,6 +321,23 @@ transactionsRoute.delete('/:id', (c) => {
   const existingRow = db.select().from(transactions).where(eq(transactions.id, id)).get()
   if (!existingRow) {
     return c.json({ error: 'Transação não encontrada.' }, 404)
+  }
+
+  // Re-validate the full chronological timeline before deleting (CR-02):
+  // removing a buy that a later sell depends on must be blocked the same
+  // way editing it down is, otherwise the ledger can be driven negative
+  // through delete instead of edit (D-07/D-08, TX-05).
+  const postDeleteLedger = loadLedger()
+    .filter((tx) => tx.id !== id)
+    .filter((tx) => tx.coinId === existingRow.coinId)
+  const negativePoint = findLedgerNegativePoint(postDeleteLedger)
+  if (negativePoint) {
+    return c.json(
+      {
+        error: `Não é possível excluir: a posição ficaria negativa em ${negativePoint.date}.`,
+      },
+      400,
+    )
   }
 
   db.delete(transactions).where(eq(transactions.id, id)).run()

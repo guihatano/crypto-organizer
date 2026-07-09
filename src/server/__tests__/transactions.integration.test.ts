@@ -198,6 +198,30 @@ describe('POST /api/transactions/buy', () => {
     expect(json.transaction.exchangeId).toBeNull()
   })
 
+  it('rejects a buy with a negative value_brl or fee_brl (WR-02)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+
+    const negativeValue = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '-100',
+      fee_brl: '500',
+      exchange_id: exchangeId,
+    })
+    expect(negativeValue.status).toBe(400)
+
+    const negativeFee = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '-1',
+      exchange_id: exchangeId,
+    })
+    expect(negativeFee.status).toBe(400)
+  })
+
   it('still rejects a buy referencing a non-existent exchange_id (400)', async () => {
     const { coinId } = seedFixture()
 
@@ -569,6 +593,107 @@ describe('PATCH /api/transactions/:id and DELETE /api/transactions/:id', () => {
   it('DELETE returns 404 for a non-existent transaction', async () => {
     const { status } = await deleteTransaction(999999)
     expect(status).toBe(404)
+  })
+
+  it('rejects editing a BUY down in quantity when a dependent SELL would go negative (CR-01, D-07/D-08)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+
+    const { json: buyResult } = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: exchangeId,
+    })
+    const buyId = buyResult.transaction.id
+
+    // Valid at the time: buy 1, sell 1 never goes negative.
+    const { json: sellResult } = await postSell({
+      date: '2026-07-02',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '0',
+      fee_brl: '0',
+      exchange_id: exchangeId,
+    })
+    expect(sellResult.positions[0]).toMatchObject({ quantity: '0' })
+
+    // Reducing the buy to 0.5 would make the 07-02 sell of 1 go negative.
+    const { status, json } = await patchTransaction(buyId, {
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '0.5',
+      value_brl: '50000',
+      fee_brl: '250',
+      exchange_id: exchangeId,
+    })
+
+    expect(status).toBe(400)
+    expect(json.error).toBeTruthy()
+
+    // Ledger must be unchanged — the buy is still 1, not 0.5.
+    const { json: positions } = await getPositions()
+    expect(positions[0]).toMatchObject({ quantity: '0' })
+  })
+
+  it('allows editing a BUY down when no dependent SELL is affected', async () => {
+    const { coinId, exchangeId } = seedFixture()
+
+    const { json: buyResult } = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: exchangeId,
+    })
+    const buyId = buyResult.transaction.id
+
+    const { status, json } = await patchTransaction(buyId, {
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '0.5',
+      value_brl: '50000',
+      fee_brl: '250',
+      exchange_id: exchangeId,
+    })
+
+    expect(status).toBe(200)
+    expect(json.positions[0]).toMatchObject({ quantity: '0.5' })
+  })
+
+  it('rejects deleting a BUY that a dependent SELL relies on (CR-02, D-07/D-08)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+
+    const { json: buyResult } = await postBuy({
+      date: '2026-07-01',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '100000',
+      fee_brl: '500',
+      exchange_id: exchangeId,
+    })
+    const buyId = buyResult.transaction.id
+
+    const { json: sellResult } = await postSell({
+      date: '2026-07-02',
+      coin_id: coinId,
+      quantity: '1',
+      value_brl: '0',
+      fee_brl: '0',
+      exchange_id: exchangeId,
+    })
+    expect(sellResult.positions[0]).toMatchObject({ quantity: '0' })
+
+    const { status, json } = await deleteTransaction(buyId)
+
+    expect(status).toBe(400)
+    expect(json.error).toBeTruthy()
+
+    // The buy must still exist — ledger unchanged.
+    const { json: transactionsAfter } = await getTransactions()
+    expect(transactionsAfter).toHaveLength(2)
   })
 })
 

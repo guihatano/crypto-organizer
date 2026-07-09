@@ -21,8 +21,12 @@ interface TransactionFormProps {
 
 type Mode = 'buy' | 'sell'
 
+// Brazil is UTC-3: from ~21:00 local onward, toISOString() has already
+// rolled to tomorrow's UTC date. Mirror the server's local-timezone
+// "today" (WR-01) so the date picker's default/max agree with the user's
+// actual calendar day.
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 }
 
 const MODE_LABEL: Record<Mode, string> = { buy: 'Compra', sell: 'Venda' }
