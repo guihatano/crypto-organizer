@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../api/client.ts'
 import { Decimal } from '../lib/decimal.ts'
-import { formatBRL, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
+import { formatBRL, formatQuantity, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
 
 interface RateResponse {
   rate: number | null
@@ -19,6 +19,13 @@ interface CurrencyInputProps {
   id: string
   date: string
   /**
+   * Pre-fills the BRL field from a raw decimal string (e.g. edit mode
+   * prefilling from an existing transaction's value_brl). Only read on
+   * mount — pass a `key` on the parent element to force a remount when
+   * switching which transaction is being edited.
+   */
+  initialBrl?: string
+  /**
    * Called with the resulting BRL amount already normalized to a plain
    * decimal string (e.g. "100500.00"), ready to send as `value_brl` —
    * the parent never needs to call parseBRLInput on this value.
@@ -34,10 +41,23 @@ interface CurrencyInputProps {
  * Only the resulting BRL amount is ever persisted; the source currency
  * (USDT quantity, rate) is not stored (D-05).
  */
-export function CurrencyInput({ id, date, onChangeBrl }: CurrencyInputProps) {
+export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInputProps) {
   const [currency, setCurrency] = useState<'BRL' | 'USDT'>('BRL')
   const [usdtAmount, setUsdtAmount] = useState('')
-  const [brlDisplay, setBrlDisplay] = useState('')
+  const [brlDisplay, setBrlDisplay] = useState(() =>
+    initialBrl ? formatQuantity(initialBrl) : '',
+  )
+
+  // Sync the initial value up to the parent once on mount (edit mode).
+  // The parent forces a remount via `key` when switching which
+  // transaction is being edited, so this only ever fires once per edit
+  // target.
+  useEffect(() => {
+    if (initialBrl != null) {
+      onChangeBrl(new Decimal(initialBrl).toString())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const { data: rateData, isFetching: rateLoading } = useQuery({
     queryKey: ['rate', 'USDT', date],

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError } from '../api/client.ts'
-import { parseBRLInput, parseQuantityInput } from '../lib/format.ts'
-import { useCreateBuy, useCreateSell } from '../hooks/useTransactions.ts'
+import { ApiError, type TransactionListItem } from '../api/client.ts'
+import { formatQuantity, parseBRLInput, parseQuantityInput } from '../lib/format.ts'
+import { useCreateBuy, useCreateSell, useUpdateTransaction } from '../hooks/useTransactions.ts'
 import { CoinDropdown } from './CoinDropdown.tsx'
 import { ExchangeDropdown } from './ExchangeDropdown.tsx'
 import { CurrencyInput } from './CurrencyInput.tsx'
@@ -9,6 +9,8 @@ import { CurrencyInput } from './CurrencyInput.tsx'
 interface TransactionFormProps {
   open: boolean
   onClose: () => void
+  /** When set, the form opens prefilled in edit mode and submits via PATCH. */
+  editingTransaction?: TransactionListItem | null
 }
 
 type Mode = 'buy' | 'sell'
@@ -17,13 +19,18 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+const MODE_LABEL: Record<Mode, string> = { buy: 'Compra', sell: 'Venda' }
+
 /**
- * Modal transaction entry form (D-03) with a Compra/Venda toggle. Buy
- * mode uses CurrencyInput (BRL/USDT toggle, D-05/D-06); sell mode's
- * "Valor recebido" is inert for Phase 1 math but stored for a future
- * capital-gains phase.
+ * Modal transaction entry form (D-03) with a Compra/Venda toggle for new
+ * transactions. Buy mode uses CurrencyInput (BRL/USDT toggle, D-05/D-06);
+ * sell mode's "Valor recebido" is inert for Phase 1 math but stored for a
+ * future capital-gains phase. When `editingTransaction` is set, the form
+ * is prefilled and submits via PATCH instead of POST (TX-04) — the
+ * buy/sell type cannot be changed on an existing transaction, so the
+ * toggle is replaced by a static label.
  */
-export function TransactionForm({ open, onClose }: TransactionFormProps) {
+export function TransactionForm({ open, onClose, editingTransaction }: TransactionFormProps) {
   const [mode, setMode] = useState<Mode>('buy')
   const [date, setDate] = useState(todayIso())
   const [coinId, setCoinId] = useState<number | null>(null)
@@ -36,14 +43,42 @@ export function TransactionForm({ open, onClose }: TransactionFormProps) {
 
   const createBuy = useCreateBuy()
   const createSell = useCreateSell()
-  const isPending = createBuy.isPending || createSell.isPending
+  const updateTransaction = useUpdateTransaction()
+  const isPending = createBuy.isPending || createSell.isPending || updateTransaction.isPending
   const dateInputRef = useRef<HTMLInputElement>(null)
+  const isEditing = editingTransaction != null
 
   useEffect(() => {
-    if (open) {
-      dateInputRef.current?.focus()
+    if (!open) return
+
+    if (editingTransaction) {
+      setMode(editingTransaction.type)
+      setDate(editingTransaction.date)
+      setCoinId(editingTransaction.coin_id)
+      setQuantity(formatQuantity(editingTransaction.quantity))
+      setFeeBrl(formatQuantity(editingTransaction.fee_brl))
+      setExchangeId(editingTransaction.exchange_id)
+      if (editingTransaction.type === 'buy') {
+        setValueBrl(editingTransaction.value_brl)
+        setReceivedBrl('')
+      } else {
+        setReceivedBrl(formatQuantity(editingTransaction.value_brl))
+        setValueBrl('')
+      }
+    } else {
+      setMode('buy')
+      setDate(todayIso())
+      setCoinId(null)
+      setQuantity('')
+      setValueBrl('')
+      setReceivedBrl('')
+      setFeeBrl('')
+      setExchangeId(null)
     }
-  }, [open])
+    setError(null)
+
+    dateInputRef.current?.focus()
+  }, [open, editingTransaction])
 
   useEffect(() => {
     if (!open) return
@@ -55,18 +90,6 @@ export function TransactionForm({ open, onClose }: TransactionFormProps) {
   }, [open, onClose])
 
   if (!open) return null
-
-  function resetForm() {
-    setMode('buy')
-    setDate(todayIso())
-    setCoinId(null)
-    setQuantity('')
-    setValueBrl('')
-    setReceivedBrl('')
-    setFeeBrl('')
-    setExchangeId(null)
-    setError(null)
-  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -87,54 +110,39 @@ export function TransactionForm({ open, onClose }: TransactionFormProps) {
 
     const quantityDecimal = parseQuantityInput(quantity)
     const feeDecimal = parseBRLInput(feeBrl || '0')
+    const isBuy = mode === 'buy'
 
-    if (mode === 'buy') {
-      if (!valueBrl.trim()) {
-        setError('Preencha o valor total.')
-        return
-      }
-      createBuy.mutate(
-        {
-          date,
-          coin_id: coinId,
-          quantity: quantityDecimal.toString(),
-          value_brl: valueBrl,
-          fee_brl: feeDecimal.toString(),
-          exchange_id: exchangeId,
-        },
-        {
-          onSuccess: () => {
-            resetForm()
-            onClose()
-          },
-          onError: (err) => {
-            setError(err instanceof ApiError ? err.message : 'Erro ao registrar transação.')
-          },
-        },
-      )
+    if (isBuy && !valueBrl.trim()) {
+      setError('Preencha o valor total.')
+      return
+    }
+
+    const valueForApi = isBuy ? valueBrl : parseBRLInput(receivedBrl || '0').toString()
+
+    const input = {
+      date,
+      coin_id: coinId,
+      quantity: quantityDecimal.toString(),
+      value_brl: valueForApi,
+      fee_brl: feeDecimal.toString(),
+      exchange_id: exchangeId,
+    }
+
+    const handlers = {
+      onSuccess: () => onClose(),
+      onError: (err: unknown) => {
+        // D-07: the server rejects an oversell with a clear reason —
+        // surfaced inline below the quantity field.
+        setError(err instanceof ApiError ? err.message : 'Erro ao registrar transação.')
+      },
+    }
+
+    if (isEditing && editingTransaction) {
+      updateTransaction.mutate({ id: editingTransaction.id, input }, handlers)
+    } else if (isBuy) {
+      createBuy.mutate(input, handlers)
     } else {
-      const receivedDecimal = parseBRLInput(receivedBrl || '0')
-      createSell.mutate(
-        {
-          date,
-          coin_id: coinId,
-          quantity: quantityDecimal.toString(),
-          value_brl: receivedDecimal.toString(),
-          fee_brl: feeDecimal.toString(),
-          exchange_id: exchangeId,
-        },
-        {
-          onSuccess: () => {
-            resetForm()
-            onClose()
-          },
-          onError: (err) => {
-            // D-07: the server rejects an oversell with a clear reason —
-            // surfaced inline below the quantity field.
-            setError(err instanceof ApiError ? err.message : 'Erro ao registrar transação.')
-          },
-        },
-      )
+      createSell.mutate(input, handlers)
     }
   }
 
@@ -151,33 +159,39 @@ export function TransactionForm({ open, onClose }: TransactionFormProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="transaction-form-title" className="mb-4 text-lg font-semibold text-gray-900">
-          Nova transação
+          {isEditing ? 'Editar transação' : 'Nova transação'}
         </h2>
 
-        <div
-          role="tablist"
-          aria-label="Tipo de transação"
-          className="mb-4 inline-flex rounded-md border border-gray-300 text-sm"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'buy'}
-            className={`px-4 py-1.5 ${mode === 'buy' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
-            onClick={() => setMode('buy')}
+        {isEditing ? (
+          <p className="mb-4 inline-block rounded-md bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700">
+            {MODE_LABEL[mode]}
+          </p>
+        ) : (
+          <div
+            role="tablist"
+            aria-label="Tipo de transação"
+            className="mb-4 inline-flex rounded-md border border-gray-300 text-sm"
           >
-            Compra
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'sell'}
-            className={`px-4 py-1.5 ${mode === 'sell' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
-            onClick={() => setMode('sell')}
-          >
-            Venda
-          </button>
-        </div>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'buy'}
+              className={`px-4 py-1.5 ${mode === 'buy' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+              onClick={() => setMode('buy')}
+            >
+              Compra
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'sell'}
+              className={`px-4 py-1.5 ${mode === 'sell' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+              onClick={() => setMode('sell')}
+            >
+              Venda
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -230,7 +244,13 @@ export function TransactionForm({ open, onClose }: TransactionFormProps) {
           {mode === 'buy' ? (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <CurrencyInput id="tx-value" date={date} onChangeBrl={setValueBrl} />
+                <CurrencyInput
+                  key={editingTransaction?.id ?? 'new'}
+                  id="tx-value"
+                  date={date}
+                  initialBrl={isEditing ? valueBrl : undefined}
+                  onChangeBrl={setValueBrl}
+                />
               </div>
               <div>
                 <label

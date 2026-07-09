@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { useCoins } from '../hooks/useTransactions.ts'
+import { ApiError } from '../api/client.ts'
+import { useCoins, useCreateCoin } from '../hooks/useTransactions.ts'
 
 interface CoinDropdownProps {
   id: string
@@ -9,12 +10,20 @@ interface CoinDropdownProps {
 
 /**
  * Searchable coin dropdown. Fetches the seeded + user-extended coin list
- * from GET /api/coins and returns the selected coin's id (D-01).
+ * from GET /api/coins and returns the selected coin's id (D-01). Includes
+ * an inline "Adicionar moeda" action (D-02) — a new coin is immediately
+ * selectable without a page refresh.
  */
 export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
   const { data: coins, isLoading } = useCoins()
+  const createCoin = useCreateCoin()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
+  const [addingNew, setAddingNew] = useState(false)
+  const [newSymbol, setNewSymbol] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newCoingeckoId, setNewCoingeckoId] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     if (!coins) return []
@@ -27,6 +36,35 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
   }, [coins, query])
 
   const selected = coins?.find((coin) => coin.id === value)
+
+  function resetAddForm() {
+    setAddingNew(false)
+    setNewSymbol('')
+    setNewName('')
+    setNewCoingeckoId('')
+    setAddError(null)
+  }
+
+  function handleCreateCoin() {
+    setAddError(null)
+    if (!newSymbol.trim() || !newName.trim() || !newCoingeckoId.trim()) {
+      setAddError('Preencha símbolo, nome e ID do CoinGecko.')
+      return
+    }
+    createCoin.mutate(
+      { symbol: newSymbol.trim(), name: newName.trim(), coingecko_id: newCoingeckoId.trim() },
+      {
+        onSuccess: (coin) => {
+          onChange(coin.id)
+          resetAddForm()
+          setOpen(false)
+        },
+        onError: (err) => {
+          setAddError(err instanceof ApiError ? err.message : 'Erro ao adicionar moeda.')
+        },
+      },
+    )
+  }
 
   return (
     <div className="relative">
@@ -44,37 +82,94 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
           setQuery('')
         }}
         onChange={(e) => setQuery(e.target.value)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
       />
       {open && (
-        <ul
+        <div
           id={`${id}-listbox`}
           role="listbox"
-          className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg"
+          className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg"
         >
-          {filtered.length === 0 && (
-            <li className="px-3 py-2 text-sm text-gray-400">Nenhuma moeda encontrada.</li>
+          {filtered.length === 0 && !addingNew && (
+            <p className="px-3 py-2 text-sm text-gray-400">Nenhuma moeda encontrada.</p>
           )}
-          {filtered.map((coin) => (
-            <li key={coin.id}>
+          <ul>
+            {filtered.map((coin) => (
+              <li key={coin.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={coin.id === value}
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onChange(coin.id)
+                    setOpen(false)
+                    setQuery('')
+                  }}
+                >
+                  <span className="font-medium">{coin.symbol}</span>{' '}
+                  <span className="text-gray-500">{coin.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="border-t border-gray-200 p-2">
+            {!addingNew ? (
               <button
                 type="button"
-                role="option"
-                aria-selected={coin.id === value}
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onChange(coin.id)
-                  setOpen(false)
-                  setQuery('')
-                }}
+                onClick={() => setAddingNew(true)}
               >
-                <span className="font-medium">{coin.symbol}</span>{' '}
-                <span className="text-gray-500">{coin.name}</span>
+                + Adicionar moeda
               </button>
-            </li>
-          ))}
-        </ul>
+            ) : (
+              <div className="space-y-2" onMouseDown={(e) => e.preventDefault()}>
+                <input
+                  type="text"
+                  placeholder="Símbolo (ex: ADA)"
+                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  value={newSymbol}
+                  onChange={(e) => setNewSymbol(e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Nome (ex: Cardano)"
+                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="CoinGecko ID (ex: cardano)"
+                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  value={newCoingeckoId}
+                  onChange={(e) => setNewCoingeckoId(e.target.value)}
+                />
+                {addError && <p className="text-xs text-red-600">{addError}</p>}
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                    onClick={resetAddForm}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={createCoin.isPending}
+                    className="rounded-md bg-gray-900 px-2 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-50"
+                    onClick={handleCreateCoin}
+                  >
+                    {createCoin.isPending ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
