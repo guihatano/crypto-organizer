@@ -1,21 +1,25 @@
+import { Info } from 'lucide-react'
 import type { PortfolioResponse } from '../api/client.ts'
+import type { Decimal } from '../lib/decimal.ts'
 import { toDecimal } from '../lib/decimal.ts'
-import { formatBRL, formatPercent } from '../lib/format.ts'
+import { formatBRL, formatPercent, formatUSD } from '../lib/format.ts'
 
 interface SummaryCardsProps {
   data: PortfolioResponse
   currency: 'BRL' | 'USD'
 }
 
+type MoneyFormatter = (value: Decimal | string | number) => string
+
 /**
- * Signed "+R$ 1.234,56 (+12,3%)" style text for the P&L card. formatBRL has
- * no signDisplay option (shared with cost columns, which must never show a
- * '+'), so the sign is prepended here from the Decimal's own sign — never
- * derived by re-parsing the formatted string.
+ * Signed "+R$ 1.234,56 (+12,3%)" / "+$1,234.56 (+12,3%)" style text for the
+ * P&L card. The money formatter has no signDisplay option (shared with cost
+ * columns, which must never show a '+'), so the sign is prepended here from
+ * the Decimal's own sign — never derived by re-parsing the formatted string.
  */
-function formatSignedPnl(pnlValue: string, pnlPct: string | null): string {
+function formatSignedPnl(pnlValue: string, pnlPct: string | null, formatMoney: MoneyFormatter): string {
   const decimal = toDecimal(pnlValue)
-  const amount = formatBRL(decimal.abs())
+  const amount = formatMoney(decimal.abs())
   const sign = decimal.isZero() ? '' : decimal.isNegative() ? '−' : '+'
   const pct = pnlPct !== null ? ` (${formatPercent(pnlPct)})` : ''
   return `${sign}${amount}${pct}`
@@ -29,16 +33,40 @@ function pnlColorClass(pnlValue: string): string {
 }
 
 /**
- * Aggregate dashboard row (POS-04/PRC-02/PRC-03) rendered above
+ * Discreet D-12 info icon + hover/focus tooltip explaining the FX caveat —
+ * only rendered when USD is the active currency. Never a banner.
+ */
+function UsdFxTooltip() {
+  return (
+    <span className="group relative ml-1 inline-flex align-middle">
+      <button
+        type="button"
+        aria-label="Sobre o câmbio em USD"
+        className="cursor-help text-gray-400 hover:text-gray-600 focus:text-gray-600"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 w-56 -translate-x-1/2 rounded-md bg-gray-900 px-2 py-1 text-xs font-normal text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        P&amp;L em USD usa o câmbio BRL/USD atual; o custo em BRL não muda
+      </span>
+    </span>
+  )
+}
+
+/**
+ * Aggregate dashboard row (POS-04/PRC-02/PRC-03/PRC-06) rendered above
  * PositionTable: total investido (always BRL, D-07), valor de mercado, and
- * lucro/prejuízo não realizado — with a partial-total warning when some
- * coins have no quote (D-10).
+ * lucro/prejuízo não realizado (both following the active `currency`
+ * toggle) — with a partial-total warning when some coins have no quote
+ * (D-10) and a discreet FX-caveat tooltip when USD is active (D-12).
  */
 export function SummaryCards({ data, currency }: SummaryCardsProps) {
-  // The `currency` prop exists for interface parity with plan 02-03, which
-  // adds the USD branch (formatUSD) for these two market-following cards.
-  // This plan (02-02) only renders BRL market values.
-  void currency
+  const formatMoney = currency === 'USD' ? formatUSD : formatBRL
+  const marketValue = currency === 'USD' ? data.total_market_value_usd : data.total_market_value_brl
+  const pnl = currency === 'USD' ? data.total_pnl_usd : data.total_pnl_brl
 
   return (
     <div>
@@ -56,17 +84,16 @@ export function SummaryCards({ data, currency }: SummaryCardsProps) {
           <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
             Valor de mercado
           </p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900">
-            {formatBRL(data.total_market_value_brl)}
-          </p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">{formatMoney(marketValue)}</p>
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+          <p className="flex items-center text-xs font-medium tracking-wide text-gray-500 uppercase">
             Lucro/prejuízo não realizado
+            {currency === 'USD' && <UsdFxTooltip />}
           </p>
-          <p className={`mt-1 text-2xl font-semibold ${pnlColorClass(data.total_pnl_brl)}`}>
-            {formatSignedPnl(data.total_pnl_brl, data.total_pnl_pct)}
+          <p className={`mt-1 text-2xl font-semibold ${pnlColorClass(pnl)}`}>
+            {formatSignedPnl(pnl, data.total_pnl_pct, formatMoney)}
           </p>
         </div>
       </div>
