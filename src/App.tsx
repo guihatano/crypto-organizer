@@ -1,12 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { TransactionListItem } from './api/client.ts'
 import { usePrices, useTransactionsList } from './hooks/useTransactions.ts'
 import { PositionTable } from './components/PositionTable.tsx'
 import { SummaryCards } from './components/SummaryCards.tsx'
+import { CurrencyToggle } from './components/CurrencyToggle.tsx'
 import { TransactionHistory } from './components/TransactionHistory.tsx'
 import { TransactionForm } from './components/TransactionForm.tsx'
 import { EmptyState } from './components/EmptyState.tsx'
+
+const CURRENCY_STORAGE_KEY = 'currency'
+
+/**
+ * Reads the persisted currency preference defensively (T-02-07): only the
+ * literal 'BRL' selects BRL — any other stored value (tampered, absent, or
+ * anything else) falls back to the D-06 default of USD on first load.
+ */
+function readStoredCurrency(): 'BRL' | 'USD' {
+  return localStorage.getItem(CURRENCY_STORAGE_KEY) === 'BRL' ? 'BRL' : 'USD'
+}
 
 /**
  * "Atualizado há {X}" indicator (D-04) derived from PortfolioResponse's
@@ -25,6 +37,11 @@ function formatUpdatedAgo(fetchedAt: string | null): string {
 function App() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<TransactionListItem | null>(null)
+  const [currency, setCurrency] = useState<'BRL' | 'USD'>(readStoredCurrency)
+
+  useEffect(() => {
+    localStorage.setItem(CURRENCY_STORAGE_KEY, currency)
+  }, [currency])
 
   const {
     data: portfolio,
@@ -64,21 +81,24 @@ function App() {
         <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">Crypto Organizer</h1>
         <div className="flex flex-wrap items-center gap-3">
           {hasTransactions && (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <span>
-                {pricesFetching ? 'Atualizando…' : formatUpdatedAgo(portfolio?.fetched_at ?? null)}
-              </span>
-              <button
-                type="button"
-                onClick={() => refetchPrices()}
-                disabled={pricesFetching}
-                aria-label="Atualizar cotações"
-                title="Atualizar cotações"
-                className="cursor-pointer rounded-md p-1.5 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 ${pricesFetching ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
+            <>
+              <CurrencyToggle value={currency} onChange={setCurrency} />
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <span>
+                  {pricesFetching ? 'Atualizando…' : formatUpdatedAgo(portfolio?.fetched_at ?? null)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => refetchPrices()}
+                  disabled={pricesFetching}
+                  aria-label="Atualizar cotações"
+                  title="Atualizar cotações"
+                  className="cursor-pointer rounded-md p-1.5 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${pricesFetching ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </>
           )}
           <button
             type="button"
@@ -106,7 +126,7 @@ function App() {
         {!isLoading && !isError && hasTransactions && portfolio && (
           <>
             {/* Summary dashboard (POS-04/PRC-02/PRC-03) */}
-            <SummaryCards data={portfolio} currency="BRL" />
+            <SummaryCards data={portfolio} currency={currency} />
 
             {/* Positions region (D-09/D-10) */}
             <section aria-labelledby="positions-heading">
@@ -114,7 +134,7 @@ function App() {
                 Posições
               </h2>
               <div className="overflow-x-auto rounded-lg border border-gray-200 p-4">
-                <PositionTable positions={portfolio.positions} currency="BRL" />
+                <PositionTable positions={portfolio.positions} currency={currency} />
               </div>
             </section>
 
