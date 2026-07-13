@@ -73,7 +73,12 @@ pricesRoute.get('/', async (c) => {
       const fresh = freshPrices[coin.coingeckoId]
       if (fresh && (typeof fresh.brl === 'number' || typeof fresh.usd === 'number')) {
         gotAnyFreshQuote = true
-        const fetchedAt = new Date().toISOString()
+        // Only stamp a fresh fetchedAt when BOTH currencies were actually
+        // refreshed together — otherwise the currency that stayed on its
+        // old cached value would be persisted alongside a `fetched_at`
+        // that falsely implies it was just refreshed too (WR-03).
+        const bothRefreshed = typeof fresh.brl === 'number' && typeof fresh.usd === 'number'
+        const fetchedAt = bothRefreshed ? new Date().toISOString() : coin.fetchedAt
         db.update(coins)
           .set({
             lastPriceBrl: typeof fresh.brl === 'number' ? String(fresh.brl) : coin.lastPriceBrl,
