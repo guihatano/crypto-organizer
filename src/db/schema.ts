@@ -4,6 +4,12 @@ import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
  * coins — seeded + user-extendable list of cryptocurrencies.
  * coingecko_id is NOT NULL from day one so Phase 2 (market prices) can plug
  * in without a schema migration (D-01).
+ *
+ * lastPriceBrl/lastPriceUsd/fetchedAt (Phase 2, D-03) cache the last
+ * successfully fetched batch price per coin. All three are nullable TEXT
+ * (never REAL, per the Decimal-math rule) — a purely additive ADD COLUMN
+ * that never touches the ledger/cost data path. Written ONLY by the
+ * prices route; the position engine (cost/preço médio) never reads them.
  */
 export const coins = sqliteTable('coins', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -12,6 +18,9 @@ export const coins = sqliteTable('coins', {
   coingeckoId: text('coingecko_id').notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+  lastPriceBrl: text('last_price_brl'),
+  lastPriceUsd: text('last_price_usd'),
+  fetchedAt: text('fetched_at'),
 })
 
 /**

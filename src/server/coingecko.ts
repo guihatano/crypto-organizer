@@ -59,6 +59,49 @@ export async function getCurrentRate(coingeckoId: string): Promise<number | null
   }
 }
 
+export interface BatchPriceResult {
+  brl: number | null
+  usd: number | null
+}
+
+/**
+ * Batch current price (BRL + USD) for multiple coins in a single request
+ * (D-01) — distinct from the single-coin BRL-only getCurrentRate above.
+ * Returns null on ANY failure (network error, non-2xx, unexpected shape)
+ * for EVERY requested id — never throws. A malformed/missing per-coin
+ * entry in a successful response degrades to null individually (D-09)
+ * without failing the whole call.
+ */
+export async function getBatchPrices(
+  coingeckoIds: string[],
+): Promise<Record<string, BatchPriceResult>> {
+  const nullResult = (): Record<string, BatchPriceResult> =>
+    Object.fromEntries(coingeckoIds.map((id) => [id, { brl: null, usd: null }]))
+
+  if (coingeckoIds.length === 0) return {}
+
+  try {
+    const url = `${COINGECKO_BASE}/simple/price?ids=${coingeckoIds.join(',')}&vs_currencies=brl,usd`
+    const res = await fetch(url, { headers: apiHeaders() })
+    if (!res.ok) return nullResult()
+    const data = (await res.json()) as Record<string, { brl?: number; usd?: number } | undefined>
+    return Object.fromEntries(
+      coingeckoIds.map((id) => {
+        const entry = data[id]
+        return [
+          id,
+          {
+            brl: typeof entry?.brl === 'number' ? entry.brl : null,
+            usd: typeof entry?.usd === 'number' ? entry.usd : null,
+          },
+        ]
+      }),
+    )
+  } catch {
+    return nullResult()
+  }
+}
+
 /**
  * historical -> current -> 'unavailable' fallback chain (D-06). NEVER
  * throws in a way that blocks the caller — the client always allows a
