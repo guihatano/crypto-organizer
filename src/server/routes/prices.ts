@@ -117,11 +117,15 @@ pricesRoute.get('/', async (c) => {
       let stale = false
       let fetchedAt: string | null = null
 
-      // Step 4: fresh > saved-cache (stale) > unavailable (D-08/D-09).
+      // Step 4: fresh > saved-cache (stale) > unavailable (D-08/D-09),
+      // applied per-currency: a fresh quote for one currency does not mean
+      // the other currency is fresh too — fall back to its cached value
+      // (if any) instead of dropping it, and mark the row stale when
+      // either currency is not actually fresh (WR-02).
       if (freshBrl !== null || freshUsd !== null) {
-        priceBrl = freshBrl !== null ? String(freshBrl) : null
-        priceUsd = freshUsd !== null ? String(freshUsd) : null
-        stale = false
+        priceBrl = freshBrl !== null ? String(freshBrl) : (coin?.lastPriceBrl ?? null)
+        priceUsd = freshUsd !== null ? String(freshUsd) : (coin?.lastPriceUsd ?? null)
+        stale = freshBrl === null || freshUsd === null
         fetchedAt = new Date().toISOString()
       } else if (coin?.lastPriceBrl != null || coin?.lastPriceUsd != null) {
         priceBrl = coin?.lastPriceBrl ?? null
