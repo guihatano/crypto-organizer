@@ -5,6 +5,11 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     passWithNoTests: true,
+    // Runs before each test file's own module graph is evaluated —
+    // guarantees DATABASE_PATH=':memory:' is set before src/db/client.ts
+    // opens its connection (see env.setup.ts for why this can't live at
+    // the top of testDb.ts instead).
+    setupFiles: ['./src/server/__tests__/env.setup.ts'],
     // Integration test files each open their own in-memory SQLite DB via
     // src/db/client.ts. Running test files in parallel can race when the
     // sandbox has few CPU cores (module isolation between files becomes

@@ -1,10 +1,8 @@
-// Must run before any module that imports `src/db/client.ts` — sets the
-// DB path to an in-memory SQLite database for integration tests, isolated
-// from the real `app.db` file used by `npm run dev`.
-process.env.DATABASE_PATH = ':memory:'
-
-// Imported AFTER the env var above is set, so `client.ts` opens the
-// in-memory database instead of the real file.
+// DATABASE_PATH=':memory:' is set by env.setup.ts (a Vitest `setupFiles`
+// entry) BEFORE this file's module graph is evaluated, so `client.ts`
+// below opens an isolated in-memory database instead of the real
+// `app.db` file used by `npm run dev`. See env.setup.ts for why the
+// assignment can't live here instead (Vite SSR import-evaluation order).
 import { sqlite } from '../../db/client.ts'
 
 const SCHEMA_SQL = `
