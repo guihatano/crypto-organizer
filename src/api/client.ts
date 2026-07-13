@@ -85,3 +85,30 @@ export interface CreateTransactionResponse {
   transaction: TransactionListItem
   positions: Position[]
 }
+
+// Phase 2 — market-price enrichment. Every monetary/quantity/percent value
+// is serialized as a string (never number), matching the Decimal-serialized
+// discipline used across the API (D-13).
+export interface PriceRow extends Position {
+  price_brl: string | null
+  price_usd: string | null
+  market_value_brl: string | null
+  market_value_usd: string | null
+  pnl_brl: string | null
+  pnl_usd: string | null
+  pnl_pct: string | null
+  fetched_at: string | null
+  stale: boolean
+}
+
+export interface PortfolioResponse {
+  positions: PriceRow[]
+  total_invested_brl: string
+  total_market_value_brl: string
+  total_market_value_usd: string
+  total_pnl_brl: string
+  total_pnl_usd: string
+  total_pnl_pct: string | null
+  coins_without_price: number
+  fetched_at: string | null
+}

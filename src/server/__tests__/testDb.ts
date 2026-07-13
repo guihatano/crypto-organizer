@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS coins (
   name text NOT NULL,
   coingecko_id text NOT NULL,
   created_at text NOT NULL,
-  updated_at text NOT NULL
+  updated_at text NOT NULL,
+  last_price_brl text,
+  last_price_usd text,
+  fetched_at text
 );
 CREATE UNIQUE INDEX IF NOT EXISTS coins_symbol_unique ON coins (symbol);
 
@@ -97,4 +100,18 @@ export function seedCoin(symbol: string, name: string, coingeckoId: string): num
     )
     .run(symbol, name, coingeckoId, now, now)
   return Number(coin.lastInsertRowid)
+}
+
+/**
+ * Directly writes a saved price-cache row (last_price_brl/usd + fetched_at)
+ * for a coin, bypassing the prices route — used by tests that need a
+ * pre-existing cached value (stale-fallback / cache-only scenarios, D-08).
+ */
+export function setCoinPriceCache(
+  coinId: number,
+  values: { lastPriceBrl: string | null; lastPriceUsd: string | null; fetchedAt: string | null },
+): void {
+  sqlite
+    .prepare('UPDATE coins SET last_price_brl = ?, last_price_usd = ?, fetched_at = ? WHERE id = ?')
+    .run(values.lastPriceBrl, values.lastPriceUsd, values.fetchedAt, coinId)
 }
