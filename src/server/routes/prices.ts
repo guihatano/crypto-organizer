@@ -39,10 +39,15 @@ interface PortfolioResponse {
 }
 
 pricesRoute.get('/', async (c) => {
-  try {
-    // Step 1: cost side (BRL, untouched) — never recomputed here.
-    const positions = computeSerializedPositions()
+  // Step 1: cost side (BRL, untouched) — never recomputed here. This is
+  // intentionally OUTSIDE the price-provider degradation guard below: a
+  // crash here is a real bug in the core cost/preço-médio logic (the one
+  // thing this app must get right per its core value statement) and must
+  // surface as a 500, not silently degrade to a fabricated "$0 invested"
+  // response.
+  const positions = computeSerializedPositions()
 
+  try {
     // Step 2: collect coingecko_id for coins with a position and fetch a
     // single batch quote (D-01, PRC-01/PRC-05).
     const coinRows = db.select().from(coins).all()
@@ -206,8 +211,11 @@ pricesRoute.get('/', async (c) => {
     }
 
     return c.json(response)
-  } catch {
-    // Never 500 (mirror rate.ts) — degrade to an empty/null-filled payload.
+  } catch (err) {
+    // Never 500 for price-provider failures (mirror rate.ts) — degrade to
+    // an empty/null-filled payload, but always log so an operator can tell
+    // a real outage/bug apart from a genuinely empty portfolio.
+    console.error('GET /api/prices failed, degrading to empty payload:', err)
     return c.json<PortfolioResponse>({
       positions: [],
       total_invested_brl: '0',
