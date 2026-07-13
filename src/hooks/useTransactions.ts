@@ -5,6 +5,7 @@ import {
   type CreateTransactionInput,
   type CreateTransactionResponse,
   type Exchange,
+  type PortfolioResponse,
   type Position,
   type TransactionListItem,
 } from '../api/client.ts'
@@ -48,9 +49,26 @@ export function useTransactionsList() {
 }
 
 /**
- * Records a buy. Invalidates ['positions'] and ['transactions'] on
- * success so both tables recompute and re-render live — no page refresh
- * needed.
+ * Market-price enrichment (D-02): auto-refreshes every 60s so the
+ * dashboard's market value/P&L stay live without user action. staleTime
+ * is already 60_000 globally (src/main.tsx). A manual refresh button
+ * calls this hook's own `refetch()` (or invalidateQueries(['prices'])).
+ * The route never throws — degraded/partial payloads come back as normal
+ * `data`, not `isError`.
+ */
+export function usePrices() {
+  return useQuery({
+    queryKey: ['prices'],
+    queryFn: () => apiClient.get<PortfolioResponse>('/prices'),
+    refetchInterval: 60_000,
+  })
+}
+
+/**
+ * Records a buy. Invalidates ['positions'], ['prices'] and ['transactions']
+ * on success so the dashboard (usePrices-driven since 02-02), the raw
+ * positions query, and the history table all recompute and re-render live
+ * — no page refresh needed.
  */
 export function useCreateBuy() {
   const queryClient = useQueryClient()
@@ -60,6 +78,7 @@ export function useCreateBuy() {
       apiClient.post<CreateTransactionResponse>('/transactions/buy', input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
+      queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
     },
   })
@@ -68,7 +87,8 @@ export function useCreateBuy() {
 /**
  * Records a sell. The server re-validates chronologically before insert
  * (D-07/D-08) — an oversell rejects with a 400 the caller surfaces
- * inline. Invalidates ['positions'] and ['transactions'] on success.
+ * inline. Invalidates ['positions'], ['prices'] and ['transactions'] on
+ * success.
  */
 export function useCreateSell() {
   const queryClient = useQueryClient()
@@ -78,6 +98,7 @@ export function useCreateSell() {
       apiClient.post<CreateTransactionResponse>('/transactions/sell', input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
+      queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
     },
   })
@@ -85,8 +106,8 @@ export function useCreateSell() {
 
 /**
  * Edits any transaction (TX-04). Re-validated chronologically server-side
- * when editing a sell (D-12). Invalidates ['positions'] and
- * ['transactions'] on success so both tables recompute live.
+ * when editing a sell (D-12). Invalidates ['positions'], ['prices'] and
+ * ['transactions'] on success so all views recompute live.
  */
 export function useUpdateTransaction() {
   const queryClient = useQueryClient()
@@ -96,6 +117,7 @@ export function useUpdateTransaction() {
       apiClient.patch<CreateTransactionResponse>(`/transactions/${id}`, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
+      queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
     },
   })
@@ -103,7 +125,8 @@ export function useUpdateTransaction() {
 
 /**
  * Deletes a transaction (TX-05). Positions recompute from the remaining
- * ledger immediately (D-12).
+ * ledger immediately (D-12); ['prices'] is also invalidated so the
+ * dashboard's market value/P&L reflect the updated ledger right away.
  */
 export function useDeleteTransaction() {
   const queryClient = useQueryClient()
@@ -113,6 +136,7 @@ export function useDeleteTransaction() {
       apiClient.delete<{ positions: Position[] }>(`/transactions/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
+      queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
     },
   })
