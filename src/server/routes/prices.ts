@@ -202,7 +202,15 @@ pricesRoute.get('/', async (c) => {
     })
 
     // Step 7: aggregate totals, partial-aware (D-10).
-    const totalPnlPct = totalInvested.isZero() ? null : totalPnlBrl.div(totalInvested).toString()
+    // `totalInvested` sums the cost of EVERY position, but `totalPnlBrl`
+    // only sums positions that resolved a market value — when any coin is
+    // missing a price, dividing the partial P&L by the FULL invested
+    // amount would silently understate the percentage instead of leaving
+    // it undefined like the underlying amounts already are (WR-04).
+    const totalPnlPct =
+      totalInvested.isZero() || coinsWithoutPrice > 0
+        ? null
+        : totalPnlBrl.div(totalInvested).toString()
     const topLevelFetchedAt = gotAnyFreshQuote
       ? new Date().toISOString()
       : newestCachedFetchedAt
