@@ -12,6 +12,15 @@ const moneyPtBRFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 2,
 })
 
+// Percent formatter (P&L%): pt-BR, always-signed ('+'/'−', U+2212 minus per
+// Intl), 1-2 decimal places.
+const percentFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'percent',
+  signDisplay: 'always',
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 2,
+})
+
 // Intl.NumberFormat('pt-BR', { style: 'currency', ... }) inserts a
 // non-breaking space (U+00A0) between "R$" and the amount. Normalize it to
 // a regular ASCII space so downstream string comparisons/tests/CSS don't
@@ -29,6 +38,21 @@ export function formatBRL(value: Decimal | string | number): string {
   // number to Intl purely for locale formatting.
   const formatted = brlFormatter.format(Number(decimal.toFixed(2)))
   return formatted.split(NON_BREAKING_SPACE).join(REGULAR_SPACE)
+}
+
+/**
+ * Formats a P&L fraction (e.g. market_value/custo - 1) as a signed pt-BR
+ * percentage, e.g. 0.123 -> '+12,3%', -0.084 -> '−8,4%' (U+2212 minus),
+ * 0 -> '+0,0%' (zero renders with the formatter's own sign, no color is
+ * implied by the string itself — callers decide neutral styling by
+ * checking the numeric value). Display-only — never used for further
+ * arithmetic. Same shared signature as formatBRL/formatQuantity, routed
+ * through toDecimal so the math chain never touches a native Number
+ * directly (D-13).
+ */
+export function formatPercent(value: Decimal | string | number): string {
+  const decimal = toDecimal(value)
+  return percentFormatter.format(Number(decimal.toFixed(4)))
 }
 
 /**

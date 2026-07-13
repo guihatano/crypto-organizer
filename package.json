@@ -25,6 +25,7 @@
     "decimal.js": "^10.6.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.28",
+    "lucide-react": "^1.24.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tailwindcss": "^4.3.2"
