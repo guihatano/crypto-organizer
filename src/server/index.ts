@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { coinsRoute } from './routes/coins.ts'
 import { exchangesRoute } from './routes/exchanges.ts'
 import { positionsRoute } from './routes/positions.ts'
+import { pricesRoute } from './routes/prices.ts'
 import { rateRoute } from './routes/rate.ts'
 import { transactionsRoute } from './routes/transactions.ts'
 
@@ -12,6 +13,7 @@ app.get('/api/health', (c) => c.json({ status: 'ok' }))
 app.route('/api/coins', coinsRoute)
 app.route('/api/exchanges', exchangesRoute)
 app.route('/api/positions', positionsRoute)
+app.route('/api/prices', pricesRoute)
 app.route('/api/transactions', transactionsRoute)
 app.route('/api/rate', rateRoute)
 
