@@ -124,8 +124,10 @@ export function maskMoneyInput(raw: string): { display: string; normalized: stri
  * Also accepts plain '1234.56' / '1234,56' without thousands separators.
  */
 export function parseBRLInput(value: string): Decimal {
-  const normalized = value.trim().replace(/\./g, '').replace(',', '.')
-  return new Decimal(normalized === '' ? 0 : normalized)
+  const trimmed = value.trim()
+  if (trimmed === '') return new Decimal(0)
+  const normalized = trimmed.includes(',') ? trimmed.replace(/\./g, '').replace(',', '.') : trimmed
+  return new Decimal(normalized)
 }
 
 /**
