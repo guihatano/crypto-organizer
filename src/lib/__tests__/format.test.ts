@@ -5,6 +5,7 @@ import {
   formatMoneyPtBR,
   formatPercent,
   formatQuantity,
+  formatUSD,
   maskMoneyInput,
   parseBRLInput,
   parseQuantityInput,
@@ -13,6 +14,16 @@ import {
 describe('formatBRL', () => {
   it("formats Decimal('1234.56') as 'R$ 1.234,56'", () => {
     expect(formatBRL(new Decimal('1234.56'))).toBe('R$ 1.234,56')
+  })
+})
+
+describe('formatUSD', () => {
+  it("formats Decimal('1234.56') as '$1,234.56'", () => {
+    expect(formatUSD(new Decimal('1234.56'))).toBe('$1,234.56')
+  })
+
+  it("formats a whole value with 2 decimal places, e.g. 500 as '$500.00'", () => {
+    expect(formatUSD('500')).toBe('$500.00')
   })
 })
 

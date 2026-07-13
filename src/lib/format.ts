@@ -5,6 +5,11 @@ const brlFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 })
 
+const usdFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+})
+
 // Money fields (BRL) always show exactly 2 decimal places, pt-BR style
 // (thousands '.', decimal ','), unlike crypto quantities.
 const moneyPtBRFormatter = new Intl.NumberFormat('pt-BR', {
@@ -38,6 +43,18 @@ export function formatBRL(value: Decimal | string | number): string {
   // number to Intl purely for locale formatting.
   const formatted = brlFormatter.format(Number(decimal.toFixed(2)))
   return formatted.split(NON_BREAKING_SPACE).join(REGULAR_SPACE)
+}
+
+/**
+ * Formats a Decimal USD amount as en-US currency, e.g. Decimal('1234.56')
+ * -> '$1,234.56'. Mirrors formatBRL's Decimal-first rounding and shared
+ * signature. Display-only — never used for further arithmetic. en-US
+ * currency formatting does not insert a non-breaking space (unlike pt-BR),
+ * so no NBSP normalization is applied here.
+ */
+export function formatUSD(value: Decimal | string | number): string {
+  const decimal = toDecimal(value)
+  return usdFormatter.format(Number(decimal.toFixed(2)))
 }
 
 /**
