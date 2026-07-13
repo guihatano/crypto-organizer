@@ -161,7 +161,9 @@ export function PositionTable({ positions, currency }: PositionTableProps) {
               </td>
               <td className="whitespace-nowrap py-2 pr-4 text-right tabular-nums">
                 {pnl === null ? (
-                  <span className="text-gray-400 italic">cotação indisponível</span>
+                  <span className="text-gray-400 italic">
+                    {marketValue === null ? 'cotação indisponível' : 'custo zero'}
+                  </span>
                 ) : (
                   <>
                     <span className={position.stale ? 'text-gray-400 italic' : pnlColorClass(pnl)}>
