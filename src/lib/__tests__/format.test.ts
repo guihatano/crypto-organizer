@@ -3,6 +3,7 @@ import { Decimal } from '../decimal.ts'
 import {
   formatBRL,
   formatMoneyPtBR,
+  formatPercent,
   formatQuantity,
   maskMoneyInput,
   parseBRLInput,
@@ -12,6 +13,22 @@ import {
 describe('formatBRL', () => {
   it("formats Decimal('1234.56') as 'R$ 1.234,56'", () => {
     expect(formatBRL(new Decimal('1234.56'))).toBe('R$ 1.234,56')
+  })
+})
+
+describe('formatPercent', () => {
+  it("formats a positive fraction 0.123 as '+12,3%'", () => {
+    expect(formatPercent(0.123)).toBe('+12,3%')
+  })
+
+  it('formats a negative fraction -0.084 as a signed negative percent', () => {
+    // Node's Intl.NumberFormat pt-BR emits a plain ASCII hyphen-minus here
+    // (not U+2212) — asserting the actual runtime output.
+    expect(formatPercent(-0.084)).toBe('-8,4%')
+  })
+
+  it("formats zero as '+0,0%' (neutral — no color implied by the string)", () => {
+    expect(formatPercent(0)).toBe('+0,0%')
   })
 })
 
