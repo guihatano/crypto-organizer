@@ -29,7 +29,7 @@ export async function getHistoricalRate(
   isoDate: string,
 ): Promise<number | null> {
   try {
-    const url = `${COINGECKO_BASE}/coins/${coingeckoId}/history?date=${toDdMmYyyy(isoDate)}&localization=false`
+    const url = `${COINGECKO_BASE}/coins/${encodeURIComponent(coingeckoId)}/history?date=${encodeURIComponent(toDdMmYyyy(isoDate))}&localization=false`
     const res = await fetch(url, { headers: apiHeaders() })
     if (!res.ok) return null
     const data = (await res.json()) as {
@@ -48,7 +48,7 @@ export async function getHistoricalRate(
  */
 export async function getCurrentRate(coingeckoId: string): Promise<number | null> {
   try {
-    const url = `${COINGECKO_BASE}/simple/price?ids=${coingeckoId}&vs_currencies=brl`
+    const url = `${COINGECKO_BASE}/simple/price?ids=${encodeURIComponent(coingeckoId)}&vs_currencies=brl`
     const res = await fetch(url, { headers: apiHeaders() })
     if (!res.ok) return null
     const data = (await res.json()) as Record<string, { brl?: number } | undefined>
@@ -81,7 +81,7 @@ export async function getBatchPrices(
   if (coingeckoIds.length === 0) return {}
 
   try {
-    const url = `${COINGECKO_BASE}/simple/price?ids=${coingeckoIds.join(',')}&vs_currencies=brl,usd`
+    const url = `${COINGECKO_BASE}/simple/price?ids=${coingeckoIds.map(encodeURIComponent).join(',')}&vs_currencies=brl,usd`
     const res = await fetch(url, { headers: apiHeaders() })
     if (!res.ok) return nullResult()
     const data = (await res.json()) as Record<string, { brl?: number; usd?: number } | undefined>
