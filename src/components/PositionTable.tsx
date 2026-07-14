@@ -48,11 +48,11 @@ function formatStaleAge(fetchedAt: string | null): string {
   return `${Math.floor(diffMin / 60)} h`
 }
 
-/** Small grey "defasado" badge with an inline "de há {X}" age (D-08). */
+/** Small grey "defasado" badge with an inline "de há {X}" age (D-08). Sits on its own line below the value so it never widens the column (see WR-05 follow-up UAT feedback). */
 function StaleBadge({ fetchedAt }: { fetchedAt: string | null }) {
   const age = formatStaleAge(fetchedAt)
   return (
-    <span className="ml-1 whitespace-nowrap rounded bg-gray-100 px-1 py-0.5 text-xs text-gray-500">
+    <span className="mt-0.5 block w-fit whitespace-nowrap rounded bg-gray-100 px-1 py-0.5 text-xs text-gray-500">
       defasado{age && ` · de há ${age}`}
     </span>
   )
@@ -62,7 +62,8 @@ function StaleBadge({ fetchedAt }: { fetchedAt: string | null }) {
  * Renders a market-value cell (Preço atual / Valor de mercado): "cotação
  * indisponível" placeholder (D-09) when the active-currency value is null,
  * otherwise the formatted value, grayed/italic + a StaleBadge when stale
- * (D-08). Never hides the row.
+ * (D-08). Never hides the row. Value and badge stack vertically (not inline)
+ * so a long "defasado · de há X" badge never forces the column wide.
  */
 function MarketCell({
   value,
@@ -79,10 +80,10 @@ function MarketCell({
     return <span className="text-gray-400 italic">cotação indisponível</span>
   }
   return (
-    <>
+    <span className="flex flex-col items-end">
       <span className={stale ? 'text-gray-400 italic' : undefined}>{formatMoney(value)}</span>
       {stale && <StaleBadge fetchedAt={fetchedAt} />}
-    </>
+    </span>
   )
 }
 
@@ -143,7 +144,7 @@ export function PositionTable({ positions, currency }: PositionTableProps) {
               <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
                 {formatBRL(position.custo_total)}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-right tabular-nums text-gray-700">
+              <td className="py-2 pr-4 text-right tabular-nums text-gray-700">
                 <MarketCell
                   value={price}
                   formatMoney={formatMoney}
@@ -151,7 +152,7 @@ export function PositionTable({ positions, currency }: PositionTableProps) {
                   fetchedAt={position.fetched_at}
                 />
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-right tabular-nums text-gray-700">
+              <td className="py-2 pr-4 text-right tabular-nums text-gray-700">
                 <MarketCell
                   value={marketValue}
                   formatMoney={formatMoney}
@@ -159,18 +160,18 @@ export function PositionTable({ positions, currency }: PositionTableProps) {
                   fetchedAt={position.fetched_at}
                 />
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-right tabular-nums">
+              <td className="py-2 pr-4 text-right tabular-nums">
                 {pnl === null ? (
                   <span className="text-gray-400 italic">
                     {marketValue === null ? 'cotação indisponível' : 'custo zero'}
                   </span>
                 ) : (
-                  <>
+                  <span className="flex flex-col items-end">
                     <span className={position.stale ? 'text-gray-400 italic' : pnlColorClass(pnl)}>
                       {formatSignedPnl(pnl, position.pnl_pct, formatMoney)}
                     </span>
                     {position.stale && <StaleBadge fetchedAt={position.fetched_at} />}
-                  </>
+                  </span>
                 )}
               </td>
             </tr>
