@@ -1,5 +1,6 @@
 import type { IrReportLine } from '../api/client.ts'
 import { formatBRL, formatQuantity } from '../lib/format.ts'
+import { CopyDiscriminacaoButton } from './CopyDiscriminacaoButton.tsx'
 
 interface IrExchangeLineTableProps {
   lines: IrReportLine[]
@@ -47,7 +48,9 @@ export function IrExchangeLineTable({ lines }: IrExchangeLineTableProps) {
             <td className="py-2 pr-4 text-right tabular-nums text-gray-700">
               {formatBRL(line.custo_de_aquisicao)}
             </td>
-            <td className="py-2 pr-4" />
+            <td className="py-2 pr-4">
+              <CopyDiscriminacaoButton text={line.discriminacao_text} />
+            </td>
           </tr>
         ))}
       </tbody>
