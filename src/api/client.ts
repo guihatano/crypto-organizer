@@ -41,11 +41,13 @@ export interface Coin {
   symbol: string
   name: string
   coingecko_id: string
+  grupo08_subcodigo: string | null
 }
 
 export interface Exchange {
   id: number
   name: string
+  cnpj: string | null
 }
 
 export interface Position {

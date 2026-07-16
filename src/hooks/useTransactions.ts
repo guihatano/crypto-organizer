@@ -175,6 +175,43 @@ export function useCreateExchange() {
 }
 
 /**
+ * Saves an exchange's CNPJ (IR-04, Cadastros panel). Invalidates
+ * ['exchanges'] AND ['ir-report'] on success — the second invalidation is
+ * what makes a just-saved CNPJ appear in the Discriminação text with no
+ * page refresh.
+ */
+export function useUpdateExchangeCnpj() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, cnpj }: { id: number; cnpj: string | null }) =>
+      apiClient.patch<Exchange>(`/exchanges/${id}`, { cnpj }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exchanges'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report'] })
+    },
+  })
+}
+
+/**
+ * Saves a coin's Grupo 08 sub-código (D-07, Cadastros panel). Invalidates
+ * ['coins'] AND ['ir-report'] on success, mirroring
+ * useUpdateExchangeCnpj's shape.
+ */
+export function useUpdateCoinGrupo08() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, grupo08_subcodigo }: { id: number; grupo08_subcodigo: string | null }) =>
+      apiClient.patch<Coin>(`/coins/${id}`, { grupo08_subcodigo }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coins'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report'] })
+    },
+  })
+}
+
+/**
  * Distinct ledger years (D-01) plus the last closed BRT year as
  * default_year (D-02, null when the ledger has no closed year yet). No
  * refetchInterval — unlike usePrices, this is ledger-derived and only
