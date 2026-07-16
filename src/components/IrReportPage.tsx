@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useIrReport, useIrReportYears } from '../hooks/useTransactions.ts'
+import { IrCoinGroup } from './IrCoinGroup.tsx'
 
 /**
  * Bens e Direitos report container (IR-01/IR-02/IR-03). Fetches the
@@ -94,8 +95,22 @@ export function IrReportPage() {
         </p>
       )}
 
-      {!reportLoading && !reportError && report && (
-        <p className="text-sm text-gray-500">{report.coins.length} moeda(s) em 31/12 de {report.year}.</p>
+      {!reportLoading && !reportError && report && report.coins.length === 0 && (
+        <div className="rounded-lg border border-gray-200 p-4">
+          <p className="text-sm font-medium text-gray-900">Nenhuma posição em 31/12 de {report.year}.</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Você não tinha nenhuma criptomoeda em carteira nessa data — não há nada para declarar em Bens e
+            Direitos nesse ano.
+          </p>
+        </div>
+      )}
+
+      {!reportLoading && !reportError && report && report.coins.length > 0 && (
+        <div className="space-y-4">
+          {report.coins.map((coin) => (
+            <IrCoinGroup key={coin.coin_id} coin={coin} />
+          ))}
+        </div>
       )}
     </section>
   )
