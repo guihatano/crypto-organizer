@@ -7,8 +7,9 @@ import { IrCoinGroup } from './IrCoinGroup.tsx'
  * available ledger years (D-01), preselects the last closed year exactly
  * once (D-02, never clobbering a year the user has since picked), and
  * renders the per-coin report for the selected year. Report values are
- * always BRL — never gated on or influenced by the dashboard's price data
- * or BRL/USD toggle (isolation rule carried from Phase 2).
+ * always BRL — never gated on or influenced by the dashboard's market
+ * quote data or its display-mode toggle (isolation rule carried from
+ * Phase 2).
  */
 export function IrReportPage() {
   const { data: yearsData, isLoading: yearsLoading, isError: yearsError } = useIrReportYears()
