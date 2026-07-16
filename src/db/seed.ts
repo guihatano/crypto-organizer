@@ -1,27 +1,39 @@
 import { db, sqlite } from './client.ts'
 import { coins, exchanges } from './schema.ts'
 
-const SEED_COINS: Array<{ symbol: string; name: string; coingeckoId: string }> = [
-  { symbol: 'BTC', name: 'Bitcoin', coingeckoId: 'bitcoin' },
-  { symbol: 'ETH', name: 'Ethereum', coingeckoId: 'ethereum' },
-  { symbol: 'USDT', name: 'Tether', coingeckoId: 'tether' },
-  { symbol: 'USDC', name: 'USD Coin', coingeckoId: 'usd-coin' },
-  { symbol: 'BNB', name: 'BNB', coingeckoId: 'binancecoin' },
-  { symbol: 'XRP', name: 'XRP', coingeckoId: 'ripple' },
-  { symbol: 'SOL', name: 'Solana', coingeckoId: 'solana' },
-  { symbol: 'ADA', name: 'Cardano', coingeckoId: 'cardano' },
-  { symbol: 'DOGE', name: 'Dogecoin', coingeckoId: 'dogecoin' },
-  { symbol: 'TRX', name: 'TRON', coingeckoId: 'tron' },
-  { symbol: 'TON', name: 'Toncoin', coingeckoId: 'the-open-network' },
-  { symbol: 'DOT', name: 'Polkadot', coingeckoId: 'polkadot' },
-  { symbol: 'MATIC', name: 'Polygon', coingeckoId: 'matic-network' },
-  { symbol: 'LTC', name: 'Litecoin', coingeckoId: 'litecoin' },
-  { symbol: 'SHIB', name: 'Shiba Inu', coingeckoId: 'shiba-inu' },
-  { symbol: 'AVAX', name: 'Avalanche', coingeckoId: 'avalanche-2' },
-  { symbol: 'LINK', name: 'Chainlink', coingeckoId: 'chainlink' },
-  { symbol: 'ATOM', name: 'Cosmos', coingeckoId: 'cosmos' },
-  { symbol: 'XLM', name: 'Stellar', coingeckoId: 'stellar' },
-  { symbol: 'BCH', name: 'Bitcoin Cash', coingeckoId: 'bitcoin-cash' },
+// grupo08Subcodigo: Phase 3 (D-07) seed defaults only — sourced from
+// RESEARCH A3's two independent secondary sources (no primary gov.br
+// table retrievable). BTC gets '01', stablecoins (USDT/USDC) get '03',
+// every other seeded coin gets '02' (outras criptomoedas). These are
+// starting values the user can overwrite any time in the Cadastros
+// panel — never a runtime lookup, and `onConflictDoNothing` below means
+// re-seeding never overwrites a value the user has already edited.
+const SEED_COINS: Array<{
+  symbol: string
+  name: string
+  coingeckoId: string
+  grupo08Subcodigo: string
+}> = [
+  { symbol: 'BTC', name: 'Bitcoin', coingeckoId: 'bitcoin', grupo08Subcodigo: '01' },
+  { symbol: 'ETH', name: 'Ethereum', coingeckoId: 'ethereum', grupo08Subcodigo: '02' },
+  { symbol: 'USDT', name: 'Tether', coingeckoId: 'tether', grupo08Subcodigo: '03' },
+  { symbol: 'USDC', name: 'USD Coin', coingeckoId: 'usd-coin', grupo08Subcodigo: '03' },
+  { symbol: 'BNB', name: 'BNB', coingeckoId: 'binancecoin', grupo08Subcodigo: '02' },
+  { symbol: 'XRP', name: 'XRP', coingeckoId: 'ripple', grupo08Subcodigo: '02' },
+  { symbol: 'SOL', name: 'Solana', coingeckoId: 'solana', grupo08Subcodigo: '02' },
+  { symbol: 'ADA', name: 'Cardano', coingeckoId: 'cardano', grupo08Subcodigo: '02' },
+  { symbol: 'DOGE', name: 'Dogecoin', coingeckoId: 'dogecoin', grupo08Subcodigo: '02' },
+  { symbol: 'TRX', name: 'TRON', coingeckoId: 'tron', grupo08Subcodigo: '02' },
+  { symbol: 'TON', name: 'Toncoin', coingeckoId: 'the-open-network', grupo08Subcodigo: '02' },
+  { symbol: 'DOT', name: 'Polkadot', coingeckoId: 'polkadot', grupo08Subcodigo: '02' },
+  { symbol: 'MATIC', name: 'Polygon', coingeckoId: 'matic-network', grupo08Subcodigo: '02' },
+  { symbol: 'LTC', name: 'Litecoin', coingeckoId: 'litecoin', grupo08Subcodigo: '02' },
+  { symbol: 'SHIB', name: 'Shiba Inu', coingeckoId: 'shiba-inu', grupo08Subcodigo: '02' },
+  { symbol: 'AVAX', name: 'Avalanche', coingeckoId: 'avalanche-2', grupo08Subcodigo: '02' },
+  { symbol: 'LINK', name: 'Chainlink', coingeckoId: 'chainlink', grupo08Subcodigo: '02' },
+  { symbol: 'ATOM', name: 'Cosmos', coingeckoId: 'cosmos', grupo08Subcodigo: '02' },
+  { symbol: 'XLM', name: 'Stellar', coingeckoId: 'stellar', grupo08Subcodigo: '02' },
+  { symbol: 'BCH', name: 'Bitcoin Cash', coingeckoId: 'bitcoin-cash', grupo08Subcodigo: '02' },
 ]
 
 const SEED_EXCHANGES: Array<{ name: string }> = [

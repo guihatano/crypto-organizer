@@ -13,6 +13,7 @@ coinsRoute.get('/', (c) => {
       symbol: row.symbol,
       name: row.name,
       coingecko_id: row.coingeckoId,
+      grupo08_subcodigo: row.grupo08Subcodigo,
     })),
   )
 })
@@ -62,4 +63,42 @@ coinsRoute.post('/', async (c) => {
     },
     201,
   )
+})
+
+interface PatchCoinBody {
+  grupo08_subcodigo?: string | null
+}
+
+/**
+ * Saves the coin's Grupo 08 sub-código (D-07), consumed by the
+ * Discriminação text. Free text with NO allowed-value list — Receita
+ * Federal renumbers these codes between filing years, which is exactly
+ * why this stays a stored, user-editable field instead of application
+ * logic. Trim only, so a blank/whitespace-only value stores null.
+ */
+coinsRoute.patch('/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) {
+    return c.json({ error: 'Id inválido.' }, 400)
+  }
+
+  const body = await c.req.json<PatchCoinBody>().catch(() => null)
+  if (!body) {
+    return c.json({ error: 'Corpo da requisição inválido.' }, 400)
+  }
+
+  const existing = db.select().from(coins).where(eq(coins.id, id)).get()
+  if (!existing) {
+    return c.json({ error: 'Moeda não encontrada.' }, 404)
+  }
+
+  const now = new Date().toISOString()
+  const updated = db
+    .update(coins)
+    .set({ grupo08Subcodigo: body.grupo08_subcodigo?.trim() || null, updatedAt: now })
+    .where(eq(coins.id, id))
+    .returning()
+    .get()
+
+  return c.json({ id: updated.id, symbol: updated.symbol, grupo08_subcodigo: updated.grupo08Subcodigo })
 })
