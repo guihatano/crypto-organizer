@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS coins (
   updated_at text NOT NULL,
   last_price_brl text,
   last_price_usd text,
-  fetched_at text
+  fetched_at text,
+  grupo08_subcodigo text
 );
 CREATE UNIQUE INDEX IF NOT EXISTS coins_symbol_unique ON coins (symbol);
 
@@ -23,7 +24,8 @@ CREATE TABLE IF NOT EXISTS exchanges (
   id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
   name text NOT NULL,
   created_at text NOT NULL,
-  updated_at text NOT NULL
+  updated_at text NOT NULL,
+  cnpj text
 );
 CREATE UNIQUE INDEX IF NOT EXISTS exchanges_name_unique ON exchanges (name);
 
@@ -98,6 +100,18 @@ export function seedCoin(symbol: string, name: string, coingeckoId: string): num
     )
     .run(symbol, name, coingeckoId, now, now)
   return Number(coin.lastInsertRowid)
+}
+
+/**
+ * Seeds an exchange with an arbitrary name (no cnpj set) — used by IR
+ * report tests that need multiple distinct exchanges, mirroring seedCoin.
+ */
+export function seedExchange(name: string): number {
+  const now = new Date().toISOString()
+  const exchange = sqlite
+    .prepare('INSERT INTO exchanges (name, created_at, updated_at) VALUES (?, ?, ?)')
+    .run(name, now, now)
+  return Number(exchange.lastInsertRowid)
 }
 
 /**

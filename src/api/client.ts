@@ -116,3 +116,36 @@ export interface PortfolioResponse {
   coins_without_price: number
   fetched_at: string | null
 }
+
+// Phase 3 — Bens e Direitos IR report. Every monetary/quantity value is
+// serialized as a string (D-13); meets_threshold is the only boolean.
+export interface IrReportLine {
+  exchange_id: number | null
+  exchange_name: string | null
+  cnpj: string | null
+  quantity: string
+  custo_de_aquisicao: string
+  discriminacao_text: string
+}
+
+export interface IrReportCoin {
+  coin_id: number
+  symbol: string | null
+  name: string | null
+  grupo08_subcodigo: string | null
+  quantity: string
+  preco_medio: string
+  custo_total: string
+  meets_threshold: boolean
+  lines: IrReportLine[]
+}
+
+export interface IrReportResponse {
+  year: number
+  coins: IrReportCoin[]
+}
+
+export interface IrReportYearsResponse {
+  years: number[]
+  default_year: number | null
+}
