@@ -14,6 +14,10 @@ export interface Transaction {
   valueBrl: string
   feeBrl: string
   createdAt: string
+  // Optional so every existing coin-level caller (calculatePositions())
+  // is unaffected — unused there, read only by the Phase 3 IR allocator
+  // (irReportEngine.ts) to group transactions per custody location.
+  exchangeId?: string | number | null
 }
 
 /**

@@ -10,6 +10,12 @@ import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
  * (never REAL, per the Decimal-math rule) — a purely additive ADD COLUMN
  * that never touches the ledger/cost data path. Written ONLY by the
  * prices route; the position engine (cost/preço médio) never reads them.
+ *
+ * grupo08Subcodigo (Phase 3, D-07) stores the Grupo 08 (Criptoativos)
+ * sub-código used in the Discriminação text. Plain nullable TEXT with NO
+ * value constraint — Receita Federal can renumber these codes year to
+ * year, so this field must never become an enum/CHECK constraint
+ * (Pitfall 3). User-editable; the report reads whatever is currently set.
  */
 export const coins = sqliteTable('coins', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -21,20 +27,23 @@ export const coins = sqliteTable('coins', {
   lastPriceBrl: text('last_price_brl'),
   lastPriceUsd: text('last_price_usd'),
   fetchedAt: text('fetched_at'),
+  grupo08Subcodigo: text('grupo08_subcodigo'),
 })
 
 /**
  * exchanges — seeded + user-extendable list of exchanges.
- * No `cnpj` column yet (deferred to Phase 3). Because SQLite supports a
- * plain, non-destructive `ALTER TABLE exchanges ADD COLUMN cnpj TEXT`,
- * this table can gain a nullable `cnpj` later without a migration that
- * touches existing rows (D-11).
+ * cnpj (Phase 3, D-09) feeds the Discriminação text's custody-location
+ * clause; nullable TEXT, no format constraint (D-08: missing/malformed
+ * CNPJ never blocks report generation, produced with a placeholder
+ * instead). Purely additive `ALTER TABLE ... ADD COLUMN`, never touches
+ * existing rows or the ledger/cost data path.
  */
 export const exchanges = sqliteTable('exchanges', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+  cnpj: text('cnpj'),
 })
 
 /**

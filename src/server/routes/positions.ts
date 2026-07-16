@@ -25,6 +25,9 @@ export function loadLedger(): EngineTransaction[] {
       valueBrl: row.valueBrl,
       feeBrl: row.feeBrl,
       createdAt: row.createdAt,
+      // Inert for calculatePositions() (only reads fields it already
+      // used) — read by the Phase 3 IR allocator to group by exchange.
+      exchangeId: row.exchangeId,
     }))
 }
 
