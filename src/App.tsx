@@ -8,6 +8,8 @@ import { CurrencyToggle } from './components/CurrencyToggle.tsx'
 import { TransactionHistory } from './components/TransactionHistory.tsx'
 import { TransactionForm } from './components/TransactionForm.tsx'
 import { EmptyState } from './components/EmptyState.tsx'
+import { ViewSwitcher, type AppView } from './components/ViewSwitcher.tsx'
+import { IrReportPage } from './components/IrReportPage.tsx'
 
 const CURRENCY_STORAGE_KEY = 'currency'
 
@@ -38,6 +40,7 @@ function App() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<TransactionListItem | null>(null)
   const [currency, setCurrency] = useState<'BRL' | 'USD'>(readStoredCurrency)
+  const [view, setView] = useState<AppView>('dashboard')
 
   useEffect(() => {
     localStorage.setItem(CURRENCY_STORAGE_KEY, currency)
@@ -82,22 +85,27 @@ function App() {
         <div className="flex flex-wrap items-center gap-3">
           {hasTransactions && (
             <>
-              <CurrencyToggle value={currency} onChange={setCurrency} />
-              <div className="flex items-center gap-1 text-xs text-gray-500">
-                <span>
-                  {pricesFetching ? 'Atualizando…' : formatUpdatedAgo(portfolio?.fetched_at ?? null)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => refetchPrices()}
-                  disabled={pricesFetching}
-                  aria-label="Atualizar cotações"
-                  title="Atualizar cotações"
-                  className="cursor-pointer rounded-md p-1.5 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-4 w-4 ${pricesFetching ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
+              <ViewSwitcher value={view} onChange={setView} />
+              {view === 'dashboard' && (
+                <>
+                  <CurrencyToggle value={currency} onChange={setCurrency} />
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                    <span>
+                      {pricesFetching ? 'Atualizando…' : formatUpdatedAgo(portfolio?.fetched_at ?? null)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => refetchPrices()}
+                      disabled={pricesFetching}
+                      aria-label="Atualizar cotações"
+                      title="Atualizar cotações"
+                      className="cursor-pointer rounded-md p-1.5 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${pricesFetching ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
           <button
@@ -111,45 +119,54 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-5xl space-y-10 px-4 py-6 sm:px-6 sm:py-8">
-        {isLoading && <p className="text-sm text-gray-400">Carregando...</p>}
-
-        {isError && (
-          <p className="text-sm text-red-500">
-            Não foi possível carregar os dados. Verifique se a API está rodando.
-          </p>
-        )}
-
-        {!isLoading && !isError && !hasTransactions && (
-          <EmptyState onCreateFirst={openNewTransaction} />
-        )}
-
-        {!isLoading && !isError && hasTransactions && portfolio && (
+        {view === 'ir-report' && hasTransactions ? (
+          // The IR report is not gated on usePrices (portfolio) — cost/IR
+          // data is isolated from the price layer and must render even
+          // when the price API is down.
+          <IrReportPage />
+        ) : (
           <>
-            {/* Summary dashboard (POS-04/PRC-02/PRC-03) */}
-            <SummaryCards data={portfolio} currency={currency} />
+            {isLoading && <p className="text-sm text-gray-400">Carregando...</p>}
 
-            {/* Positions region (D-09/D-10) */}
-            <section aria-labelledby="positions-heading">
-              <h2 id="positions-heading" className="mb-3 text-lg font-medium text-gray-900">
-                Posições
-              </h2>
-              <div className="overflow-x-auto rounded-lg border border-gray-200 p-4">
-                <PositionTable positions={portfolio.positions} currency={currency} />
-              </div>
-            </section>
+            {isError && (
+              <p className="text-sm text-red-500">
+                Não foi possível carregar os dados. Verifique se a API está rodando.
+              </p>
+            )}
 
-            {/* History region (D-09) */}
-            <section aria-labelledby="history-heading">
-              <h2 id="history-heading" className="mb-3 text-lg font-medium text-gray-900">
-                Histórico de transações
-              </h2>
-              <div className="overflow-x-auto rounded-lg border border-gray-200 p-4">
-                <TransactionHistory
-                  transactions={transactionsList ?? []}
-                  onEdit={openEditTransaction}
-                />
-              </div>
-            </section>
+            {!isLoading && !isError && !hasTransactions && (
+              <EmptyState onCreateFirst={openNewTransaction} />
+            )}
+
+            {!isLoading && !isError && hasTransactions && portfolio && (
+              <>
+                {/* Summary dashboard (POS-04/PRC-02/PRC-03) */}
+                <SummaryCards data={portfolio} currency={currency} />
+
+                {/* Positions region (D-09/D-10) */}
+                <section aria-labelledby="positions-heading">
+                  <h2 id="positions-heading" className="mb-3 text-lg font-medium text-gray-900">
+                    Posições
+                  </h2>
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 p-4">
+                    <PositionTable positions={portfolio.positions} currency={currency} />
+                  </div>
+                </section>
+
+                {/* History region (D-09) */}
+                <section aria-labelledby="history-heading">
+                  <h2 id="history-heading" className="mb-3 text-lg font-medium text-gray-900">
+                    Histórico de transações
+                  </h2>
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 p-4">
+                    <TransactionHistory
+                      transactions={transactionsList ?? []}
+                      onEdit={openEditTransaction}
+                    />
+                  </div>
+                </section>
+              </>
+            )}
           </>
         )}
       </main>

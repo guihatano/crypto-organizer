@@ -5,6 +5,8 @@ import {
   type CreateTransactionInput,
   type CreateTransactionResponse,
   type Exchange,
+  type IrReportResponse,
+  type IrReportYearsResponse,
   type PortfolioResponse,
   type Position,
   type TransactionListItem,
@@ -169,5 +171,31 @@ export function useCreateExchange() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exchanges'] })
     },
+  })
+}
+
+/**
+ * Distinct ledger years (D-01) plus the last closed BRT year as
+ * default_year (D-02, null when the ledger has no closed year yet). No
+ * refetchInterval — unlike usePrices, this is ledger-derived and only
+ * changes on a mutation, not on a 60s market clock.
+ */
+export function useIrReportYears() {
+  return useQuery({
+    queryKey: ['ir-report-years'],
+    queryFn: () => apiClient.get<IrReportYearsResponse>('/ir-report/years'),
+  })
+}
+
+/**
+ * Bens e Direitos report for a single closed year (IR-01). Disabled while
+ * no year is selected (year === null) so it never fires with an invalid
+ * query param.
+ */
+export function useIrReport(year: number | null) {
+  return useQuery({
+    queryKey: ['ir-report', year],
+    queryFn: () => apiClient.get<IrReportResponse>(`/ir-report?year=${year}`),
+    enabled: year !== null,
   })
 }
