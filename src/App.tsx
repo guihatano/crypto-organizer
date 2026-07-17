@@ -41,6 +41,11 @@ function App() {
   const [editingTransaction, setEditingTransaction] = useState<TransactionListItem | null>(null)
   const [currency, setCurrency] = useState<'BRL' | 'USD'>(readStoredCurrency)
   const [view, setView] = useState<AppView>('dashboard')
+  // Lifted above IrReportPage's conditional-render boundary (D-02): App
+  // never unmounts on a view switch, so this survives Dashboard <-> Relatório
+  // IR toggling, unlike component-local state on IrReportPage would.
+  const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
     localStorage.setItem(CURRENCY_STORAGE_KEY, currency)
@@ -123,7 +128,12 @@ function App() {
           // The IR report is not gated on usePrices (portfolio) — cost/IR
           // data is isolated from the price layer and must render even
           // when the price API is down.
-          <IrReportPage />
+          <IrReportPage
+            selectedYear={selectedYear}
+            setSelectedYear={setSelectedYear}
+            initialized={initialized}
+            setInitialized={setInitialized}
+          />
         ) : (
           <>
             {isLoading && <p className="text-sm text-gray-400">Carregando...</p>}

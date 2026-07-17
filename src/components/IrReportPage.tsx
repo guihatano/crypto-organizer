@@ -1,7 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useIrReport, useIrReportYears } from '../hooks/useTransactions.ts'
 import { CadastrosPanel } from './CadastrosPanel.tsx'
 import { IrCoinGroup } from './IrCoinGroup.tsx'
+
+interface IrReportPageProps {
+  selectedYear: number | null
+  setSelectedYear: (year: number | null) => void
+  initialized: boolean
+  setInitialized: (value: boolean) => void
+}
 
 /**
  * Bens e Direitos report container (IR-01/IR-02/IR-03). Fetches the
@@ -12,21 +19,30 @@ import { IrCoinGroup } from './IrCoinGroup.tsx'
  * quote data or its display-mode toggle (isolation rule carried from
  * Phase 2).
  *
+ * `selectedYear`/`initialized` are controlled props owned by App, lifted
+ * above the view-switch boundary that conditionally renders this component
+ * — App does not unmount on a Dashboard <-> Relatório IR toggle, so the
+ * "preselect once" flag below survives an IrReportPage unmount/remount
+ * instead of resetting and re-clobbering a manual pick.
+ *
  * The "Cadastros para declaração" panel (D-09/D-07/IR-04, see 03-03)
  * mounts unconditionally below the report section — the user may want to
  * fill CNPJ/Grupo 08 sub-código before a year is even selected or while
  * the selected year's report is empty.
  */
-export function IrReportPage() {
+export function IrReportPage({
+  selectedYear,
+  setSelectedYear,
+  initialized,
+  setInitialized,
+}: IrReportPageProps) {
   const { data: yearsData, isLoading: yearsLoading, isError: yearsError } = useIrReportYears()
-  const [selectedYear, setSelectedYear] = useState<number | null>(null)
-  const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
     if (initialized || !yearsData) return
     setSelectedYear(yearsData.default_year)
     setInitialized(true)
-  }, [initialized, yearsData])
+  }, [initialized, yearsData, setSelectedYear, setInitialized])
 
   const {
     data: report,
