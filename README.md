@@ -30,7 +30,24 @@ Open http://localhost:5173.
 - `npm run build` — type-check and build a production bundle
 - `npm run test` / `npm run test:run` — Vitest (watch / single run)
 - `npm run db:push` — apply the Drizzle schema to the local SQLite file
+- `npm run db:reset` — delete `app.db` and recreate the schema from scratch
 - `npm run seed` — idempotently seed default coins and exchanges
+
+## Resetting the database
+
+To wipe all local data and start from an empty schema:
+
+```bash
+npm run db:reset   # deletes app.db, then recreates the schema
+npm run seed       # optional: re-seed default coins and exchanges
+```
+
+**Warning:** this permanently deletes every transaction in `app.db`. There is
+no undo. Only the schema is recreated — run `npm run seed` afterwards if you
+want the default coins and exchanges back.
+
+The command uses `rm -f` and targets the default `app.db`. If you point
+`DATABASE_PATH` at a different file, delete that file manually instead.
 
 ## Notes
 
