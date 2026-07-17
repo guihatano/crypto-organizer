@@ -67,10 +67,11 @@ export function usePrices() {
 }
 
 /**
- * Records a buy. Invalidates ['positions'], ['prices'] and ['transactions']
- * on success so the dashboard (usePrices-driven since 02-02), the raw
- * positions query, and the history table all recompute and re-render live
- * — no page refresh needed.
+ * Records a buy. Invalidates ['positions'], ['prices'], ['transactions'],
+ * ['ir-report'] and ['ir-report-years'] on success so the dashboard
+ * (usePrices-driven since 02-02), the raw positions query, the history
+ * table, and the Relatório IR view all recompute and re-render live — no
+ * page refresh needed.
  */
 export function useCreateBuy() {
   const queryClient = useQueryClient()
@@ -82,6 +83,8 @@ export function useCreateBuy() {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
       queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report-years'] })
     },
   })
 }
@@ -89,8 +92,8 @@ export function useCreateBuy() {
 /**
  * Records a sell. The server re-validates chronologically before insert
  * (D-07/D-08) — an oversell rejects with a 400 the caller surfaces
- * inline. Invalidates ['positions'], ['prices'] and ['transactions'] on
- * success.
+ * inline. Invalidates ['positions'], ['prices'], ['transactions'],
+ * ['ir-report'] and ['ir-report-years'] on success.
  */
 export function useCreateSell() {
   const queryClient = useQueryClient()
@@ -102,14 +105,17 @@ export function useCreateSell() {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
       queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report-years'] })
     },
   })
 }
 
 /**
  * Edits any transaction (TX-04). Re-validated chronologically server-side
- * when editing a sell (D-12). Invalidates ['positions'], ['prices'] and
- * ['transactions'] on success so all views recompute live.
+ * when editing a sell (D-12). Invalidates ['positions'], ['prices'],
+ * ['transactions'], ['ir-report'] and ['ir-report-years'] on success so
+ * all views recompute live.
  */
 export function useUpdateTransaction() {
   const queryClient = useQueryClient()
@@ -121,14 +127,18 @@ export function useUpdateTransaction() {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
       queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report-years'] })
     },
   })
 }
 
 /**
  * Deletes a transaction (TX-05). Positions recompute from the remaining
- * ledger immediately (D-12); ['prices'] is also invalidated so the
- * dashboard's market value/P&L reflect the updated ledger right away.
+ * ledger immediately (D-12); ['prices'], ['ir-report'] and
+ * ['ir-report-years'] are also invalidated so the dashboard's market
+ * value/P&L and the Relatório IR view reflect the updated ledger right
+ * away.
  */
 export function useDeleteTransaction() {
   const queryClient = useQueryClient()
@@ -140,6 +150,8 @@ export function useDeleteTransaction() {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
       queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report-years'] })
     },
   })
 }
