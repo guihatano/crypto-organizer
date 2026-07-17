@@ -1,141 +1,207 @@
-# Project Research Summary
+# Research Summary: Crypto Organizer v1.1 Milestone
 
-**Project:** Crypto Organizer
-**Domain:** Personal crypto portfolio tracker — local-first web app, Brazilian IR (Bens e Direitos) reporting
-**Researched:** 2026-07-03
-**Confidence:** MEDIUM
+**Project:** Crypto Organizer — Personal crypto portfolio tracker (Brazilian IR focus)  
+**Milestone:** v1.1 — Dark mode, single-user auth, CSV backup  
+**Researched:** 2026-07-17 (v1.1 addendum to v1.0 baseline from 2026-07-03)  
+**Confidence:** MEDIUM-HIGH (stack: MEDIUM; features: MEDIUM; architecture: MEDIUM-HIGH; pitfalls: LOW-MEDIUM)
+
+---
 
 ## Executive Summary
 
-Crypto Organizer is a single-user, local-first web application whose primary purpose is not general portfolio tracking but specifically correct Brazilian income tax reporting (Bens e Direitos). The distinction matters architecturally: no mainstream tool (Koinly, CoinTracker, CoinStats) implements native Brazilian custo de aquisição tracking with the Dec 31 snapshot required by Receita Federal. That gap is the reason to build a custom tool. The recommended approach is a Node.js + Hono backend serving a React/Vite SPA, with SQLite via Drizzle ORM, started with a single `npm run dev` and zero infrastructure.
+The v1.0 codebase has a proven, stable foundation: Hono + React + SQLite with Decimal.js financial math, live CoinGecko price integration, and correct Brazilian IR (Bens e Direitos) reporting. The v1.1 milestone adds three independent features that collectively prepare the app for future hosting and ensure data durability: **single-user authentication** (gate all routes, enable future multi-deployment), **dark mode** (user-requested UI expectation), and **CSV backup/restore** (data loss insurance).
 
-The most critical technical decision is to treat the transaction ledger as append-only and derive all position data (preço médio, custo de aquisição) by replaying the ledger at read time using Decimal.js arithmetic — never native JS floats, never stored derived state. The Brazilian tax rule that differentiates this app from US-style trackers is that selling does NOT change the preço médio; only buys recalculate the weighted average. Getting this wrong invalidates every Bens e Direitos figure the app produces.
+The three features have asymmetric complexity and interdependencies. Auth is the blocking decision: it gates all other routes and must land first. Dark mode is the widest-reaching change (touches ~14 components) but has zero data-flow coupling to auth or CSV. CSV backup is the riskiest: dedupe logic, number precision round-tripping, and batch insertion-order validation all have potential to silently corrupt data if implemented incorrectly — but the mistakes are well-documented and preventable. All three features can be built on the existing stack with no core dependencies added except `argon2`, `csv-parse`, `csv-stringify`, and Tailwind v4's CSS-first `@custom-variant` syntax (no config file).
 
-The two highest risks are financial calculation correctness (float math, wrong sell logic, excluded fees) and data independence (the IR report must never depend on price API availability). Both are avoidable by architectural discipline: Decimal.js from day one, strict separation of the core position engine from the optional price-enrichment layer, and unit tests for the buy/sell algorithm before building any UI.
+**Key recommendation:** Land auth first (enables testing dark mode and CSV behind a login screen), then dark mode (mechanical but wide), then CSV export (read-only, lower risk), then CSV import (highest complexity, benefits from real export files to test against). **Key risk:** CSV dedupe logic keyed on surrogate IDs instead of business identity is the single highest-impact silent-data-loss bug; the same applies to Decimal number format changes during round-trip — both are preventable with explicit tests and design discipline.
 
 ---
 
 ## Key Findings
 
-### Recommended Stack
+### Recommended Stack (v1.1 Additions to v1.0 Baseline)
 
-A single Node.js 22 LTS process runs the Hono 4 REST API and, in production, serves the compiled React 19 / Vite 6 SPA. SQLite via better-sqlite3 travels with the process — no database server, no migrations to a cloud provider. The stack is deliberately chosen to be runnable with `npm run dev` and deployable later to a VPS or Cloudflare Workers without code changes (Hono's Web Standards API makes this possible). CoinGecko's free Demo tier (30 req/min) covers BRL price data. The non-negotiable choice is Decimal.js for all monetary and quantity arithmetic; native JS floats will silently corrupt preço médio calculations.
+The v1.0 stack (Node.js 22 LTS, React 19, Hono 4, Drizzle ORM, SQLite with better-sqlite3, Decimal.js) is unchanged and proven stable across 3 shipped phases. V1.1 adds only:
 
-**Core technologies:**
-- **Node.js 22 LTS** — runtime; 22 specifically for better-sqlite3 compatibility and native fetch
-- **TypeScript 5.x** — type safety across the stack; critical for financial logic
-- **React 19 + Vite 6** — SPA with sub-second HMR; shadcn/ui component compatibility
-- **Hono 4 + @hono/node-server** — TypeScript-native API; 4x faster than Express; no vendor lock-in
-- **better-sqlite3 12.x** — synchronous, fastest Node.js SQLite driver; ideal for single-user local app
-- **Drizzle ORM 0.45** — type-safe schema + migrations; schema is portable to PostgreSQL if hosted later
-- **Decimal.js 10.6** — arbitrary-precision decimal math; the only correct choice for BRL + fractional crypto
-- **TanStack Query v5** — API caching and background refetch with configurable refetchInterval
-- **CoinGecko Demo API** — free BRL price feed; 30 calls/min; store prices with fetched_at for offline use
+**Authentication:**
+- `argon2` (0.44.0) — Password hashing using Argon2id (OWASP 2026 current default), async API required for non-blocking login
+- Hono built-in `hono/cookie` — `setSignedCookie` / `getSignedCookie` for tamper-proof session cookies, already in `hono@4.12.28`
+- Node.js built-in `node:crypto` — `randomUUID()`, `timingSafeEqual()`, no new package
 
-### Expected Features
+**CSV Backup:**
+- `csv-parse@7.0.1` — RFC 4180-compliant CSV parsing, synchronous API pairs with existing sync better-sqlite3 style
+- `csv-stringify@6.8.1` — RFC 4180 CSV generation with proper quoting/escaping (no hand-rolled `.join(',')` corruption)
 
-The minimum viable product must replace a manual spreadsheet for Bens e Direitos filing. All core features are achievable with LOW-to-MEDIUM implementation complexity.
+**Dark Mode:**
+- Tailwind v4 `@custom-variant dark` CSS directive — class-based dark mode in `src/index.css`, no config file, no `next-themes` package
+- React context (`ThemeProvider`) for toggle UX and `localStorage` persistence — modeled on existing `currency` toggle pattern
 
-**Must have (table stakes) — v1:**
-- Buy transaction entry (date, coin, qty, total BRL paid including fees, exchange)
-- Sell transaction entry with proportional custo de aquisição reduction; preço médio unchanged
-- Transaction history list with edit and delete (triggers full recalculation)
-- Per-coin position view: quantity, preço médio, custo de aquisição
-- Correct preço médio per Brazilian rules (weighted average; fees included; unchanged on sell)
-- Bens e Direitos report: custo de aquisição per coin as of Dec 31 of selected year; R$5k threshold filter
-- Exchange / source tag per transaction (required for Discriminação field in IRPF)
-- Current price via CoinGecko (on demand; graceful degradation; must not block IR report)
-- Market value and unrealized P&L per coin (derived from price + position)
+**Optional (not required this milestone):**
+- `zod` (4.4.3) — Schema validation for CSV row parsing; add only if manual validation logic becomes unwieldy
 
-**Should have (differentiators) — v1.x:**
-- Year-selectable Dec 31 snapshot (replay positions as of any Dec 31)
-- R$5k threshold indicator per coin on holdings screen
-- Discriminação auto-generator (one-click copy for IRPF software)
-- Portfolio summary dashboard (total invested vs total market value)
+See `STACK.md` section "v1.1 Additions" for detailed rationale, alternatives considered, and version compatibility.
 
-**Defer (v2+):**
-- CSV import from exchanges (each format differs; manual entry first)
-- Capital gains / DARF calculation (different problem; own milestone)
-- Multi-user / authentication / hosted deployment (major architecture change)
+### Expected Features (v1.1)
 
-### Architecture Approach
+**Table Stakes (users assume these exist):**
+- Dark mode manual toggle + localStorage persistence + OS preference on first load
+- First-run setup screen (no public signup, one account only) and login form
+- Logout that invalidates session server-side, not just client-side
+- Auth protects all `/api/*` routes (no unauthenticated access)
+- CSV export of all transactions in a stable, human-readable column format
+- CSV import with validation, preview (import/skip/error counts), and exact-row deduplication
+- Password stored as a hash, never plaintext
 
-The architecture separates two independent subsystems: (1) the core ledger + position engine, which is pure, deterministic, offline-capable, and the only source of IR truth; and (2) the price-enrichment layer, which is async, best-effort, and never allowed to block the core. All transactions are stored append-only (event sourcing lite). Derived state — preço médio, custo de aquisição — is computed at read time by replaying the ledger. The Report Generator is identical to the Position Engine with a date cutoff (asOf="YYYY-12-31"), making multi-year support nearly free.
+**Differentiators (nice to have, low cost):**
+- UTF-8 BOM on CSV export for Excel on Windows (PT-BR accented names)
+- Long-lived session (days, not fintech-style 5-min timeouts) for a trusted local app
+- Manual password-recovery path (optional: script to reset hash and re-trigger setup)
 
-**Major components:**
+**Defer to v2+:**
+- Exchange-native CSV import (Binance, Mercado Bitcoin formats)
+- Public/multi-user auth, hosted deployment with stricter session policy
+- Theme customization beyond light/dark
 
-1. **Ledger Store** — append-only SQLite transactions table; quantities and BRL amounts stored as TEXT strings, never REAL
-2. **Position Engine** — pure TypeScript function; replays ledger chronologically; uses Decimal.js; no I/O; fully unit-testable in isolation
-3. **Report Generator** — calls Position Engine with asOf date; applies R$5k filter; maps coins to Grupo 08 IR codes; no price dependency
-4. **Price Cache + Fetcher** — async background CoinGecko calls; SQLite price_cache table; serves stale on error; never blocks core data path
-5. **Hono Routes** — thin HTTP layer; delegates to engine and db layers; no business logic
-6. **React UI** — Transaction form, Portfolio dashboard, IR Report view; no business logic; shadcn/ui components
+See `FEATURES.md` "v1.1 Milestone Addendum" for feature prioritization matrix and anti-features.
+
+### Architecture Approach (v1.1)
+
+Three new patterns for v1.1; the v1.0 architecture (append-only ledger, recompute-on-read positions, price isolation) is unchanged:
+
+1. **Route-order-as-access-control:** Register unauthenticated routes (`/api/health`, `/api/auth/*`) first, then `app.use('/api/*', authMiddleware)`, then all protected routes. Hono middleware executes in registration order — no config file, no separate allowlist to drift; layout *is* the security boundary.
+
+2. **Signed cookie + server-side session record:** Generate a random session ID on login, store it (with expiry) in a `sessions` table with a signed HMAC cookie. This is revocable (logout deletes the session row) unlike stateless JWT, and it's the pattern already validated for prep-for-hosting.
+
+3. **CSS-variable-free dark mode via `@custom-variant`:** Add one line to `src/index.css`: `@custom-variant dark (&:where(.dark, .dark *));` then retrofit components by adding paired `dark:` classes. This is mechanical, wide, and low-risk.
+
+4. **CSV export/import with business-key deduplication:** Export uses coin `symbol` and exchange `name`, not surrogate IDs. Import resolves these back to local IDs, deduplicates on exact content match, and all inserts happen in a single SQLite transaction.
+
+See `ARCHITECTURE.md` "v1.1 Milestone Addendum" for detailed patterns and data flow.
 
 ### Critical Pitfalls
 
-1. **Float arithmetic for BRL amounts** — Use Decimal.js for all monetary math; store amounts as TEXT in SQLite, never as REAL. Native JS number produces 0.30000000000000004 and will corrupt every preço médio figure. Verify with unit test: 3 purchases of R$333,33 must total exactly R$999,99.
+**Eight critical pitfalls identified; top three by impact:**
 
-2. **Recalculating preço médio after a sell** — This is the Brazil-specific rule: selling does NOT change the unit average cost. Only quantity and total custo de aquisição drop proportionally. After a partial sell, preco_medio must be numerically identical to its pre-sell value — verify with Decimal equality assertion, not float equality.
+1. **CSV dedupe keyed on surrogate IDs instead of business identity** — Silent duplicates on every re-import. *Fix:* Export symbol + exchange name. Dedupe on (date, type, symbol, quantity, valueBrl, feeBrl, exchangeName, origin). Test by importing same CSV into two databases with coins/exchanges seeded in different order.
 
-3. **Declaring market value instead of custo de aquisição in Bens e Direitos** — The IR report must read exclusively from the ledger cost basis. Physically separate these two data flows in code. Integration test: change mock price, assert report output unchanged.
+2. **Decimal format changes during round-trip break exact-match dedupe** — Permanent duplicates if `"10.50"` becomes `"10.5"` after normalization. *Fix:* Export raw TEXT values as-is. Define dedupe on numeric value (`Decimal(a).equals(Decimal(b))`), not raw string. Write export→import→export round-trip test.
 
-4. **Misapplying the R$5,000 threshold (per asset, not per portfolio)** — Each coin is evaluated independently. R$6k BTC + R$2k ETH means declare only BTC. Filter per position, not on aggregate. Test boundary: exactly R$5,000 is included; R$4,999.99 is excluded.
+3. **Batch CSV import violates position validation because rows aren't applied in date order** — Valid historical ledgers rejected mid-import. *Fix:* Sort by date before insertion. Validate entire batch atomically. Never partially commit.
 
-5. **Excluding fees from cost basis** — Exchange fees must be included in custo de aquisição. Unit test: buy 1 BTC for R$100,000 with R$500 fee, custo total must be R$100,500.
+**Other critical pitfalls:**
+- Pitfall 4: Fast/weak password hashing or sync API blocking server on login → use async argon2/bcrypt, cost ≥ 12
+- Pitfall 5: Session cookie missing `httpOnly`, `secure`, or `sameSite` → explicit options on `setSignedCookie`, always include
+- Pitfall 6: Dark mode flash of unstyled content (FOUC) → blocking inline `<script>` in `index.html` `<head>` before first paint
+- Pitfall 7: First-run setup endpoint stays reachable after setup → gate route server-side on every request
+- Pitfall 8: CSV export vulnerable to formula injection (`=`, `+`, `-`, `@`) → prefix with space or quote before export
+
+See `PITFALLS.md` for verification checklists, recovery strategies, and integration gotchas.
 
 ---
 
 ## Implications for Roadmap
 
-Based on combined research, the architecture's own suggested build order maps naturally to 4 phases.
+Based on research dependencies and risk profile, v1.1 should be executed in four phases:
 
-### Phase 1: Data Foundation — Ledger and Position Engine
+### Phase 1: Single-User Auth (foundation)
 
-**Rationale:** All other features depend on correct data storage and correct financial math. This is the correctness foundation. Build and extensively test it before any UI. The pitfall-to-phase mapping assigns 5 of 11 pitfalls to this phase.
-**Delivers:** SQLite schema (append-only transactions table, TEXT amounts), Drizzle migrations, Position Engine pure function (preço médio, custo de aquisição), full unit test suite for buy/sell/partial-sell/fees scenarios.
-**Addresses:** Buy entry, sell entry, preço médio calculation, exchange tagging, per-coin position data.
-**Avoids:** Float arithmetic pitfall, wrong sell logic pitfall, fees-excluded pitfall, mutable ledger pitfall, SQLite without WAL pitfall.
-**Research flag:** Standard patterns — no additional research phase needed. Vitest unit tests are mandatory before proceeding to Phase 2.
+**Rationale:** Auth is the only feature that changes cross-cutting behavior. Landing it first means dark mode and CSV backup phases are built and tested *behind* the login screen.
 
-### Phase 2: Core UI — Transaction Entry and Portfolio Dashboard
+**Delivers:**
+- First-run setup flow, login form, logout with session revocation
+- Password hashing with Argon2id (async API)
+- Signed session cookies (httpOnly, sameSite, secure config ready for future hosting)
+- `sessions` table + `auth_credentials` table in SQLite
+- Hono `authMiddleware` checking session validity
+- Protected `/api/*` routes, public `/api/auth/*` routes
 
-**Rationale:** Once the engine has passing tests, wire it to a minimal UI so the user can enter real data and validate the calculations before building the IR report.
-**Delivers:** Hono REST routes (transactions CRUD, positions endpoint), React transaction form (buy/sell), portfolio holdings table (qty, preço médio, custo de aquisição). No price data yet.
-**Addresses:** Transaction history list, edit/delete, per-coin position view.
-**Avoids:** Business logic leaking into UI components; all computation stays in engine layer.
-**Research flag:** Standard patterns — React/Hono/TanStack Query integration is well-documented.
+**Uses:** `argon2`, Hono `hono/cookie`, Node `node:crypto`, Drizzle ORM
 
-### Phase 3: Price Enrichment — CoinGecko Integration
+**Avoids:** Pitfalls 4 (weak hashing), 5 (missing cookie flags), 7 (setup route stays open)
 
-**Rationale:** Isolated risk. If CoinGecko integration proves unreliable or rate-limit constraints require adjustment, Phases 1 and 2 remain fully functional. This phase is additive only.
-**Delivers:** CoinGecko API client (batched requests using coin-ID not symbol), SQLite price_cache with TTL, background refresh via TanStack Query refetchInterval, portfolio enriched with market value and unrealized P&L, graceful "preco indisponivel" UI state.
-**Addresses:** Current price fetch, market value per coin, unrealized P&L, graceful degradation.
-**Avoids:** N+1 API calls pitfall (batch all coins in one request), null-price-as-zero pitfall, UI blocked on price fetch failure.
-**Research flag:** CoinGecko coin-ID mapping (symbol vs id) needs a smoke test against the live API before shipping.
+**Research flags:** None — well-documented patterns, Hono official docs verified.
 
-### Phase 4: Bens e Direitos Report
+---
 
-**Rationale:** The primary deliverable of the product. Built last because it depends on a proven Position Engine (Phase 1) and real user transactions (Phase 2). Price data must not be involved here.
-**Delivers:** Report Generator (Position Engine with asOf date cutoff), year selector UI, per-coin Grupo 08 IR code mapping (01=BTC, 02=ETH, 03=Altcoin, 10=Stablecoin), R$5k threshold filter and visual indicator, Discriminação text generator for copy-paste into IRPF.
-**Addresses:** Bens e Direitos report, R$5k threshold indicator, year-selectable snapshot, Discriminação auto-generator.
-**Avoids:** Market value in IR report pitfall, per-portfolio threshold pitfall, timezone Dec 31 snapshot pitfall, missing Grupo 08 sub-codes pitfall.
-**Research flag:** Timezone handling needs explicit unit test: a transaction at 23:50 BRT Dec 31 (= 02:50 UTC Jan 1) must appear in the Dec 31 snapshot, not Jan 1.
+### Phase 2: Dark Mode (wide, mechanical)
+
+**Rationale:** Independent of auth and CSV (no data-flow coupling). High visible impact but lowest functional complexity. Sequencing after auth means login screen is dark-aware from start.
+
+**Delivers:**
+- Tailwind v4 `@custom-variant dark` CSS directive
+- ThemeProvider + useTheme hook
+- ModeToggle component (sun/moon/system dropdown)
+- Paired `dark:` classes retrofitted across ~14 components
+- Theme persisted in localStorage (no FOUC on hard refresh)
+
+**Uses:** Tailwind v4 `@custom-variant`, React context, localStorage
+
+**Avoids:** Pitfall 6 (FOUC)
+
+**Research flags:** None — official docs verified.
+
+---
+
+### Phase 3: CSV Export (read-only, lower risk)
+
+**Rationale:** Export is read-only and lower-risk than import. Produces real backup files for import phase testing.
+
+**Delivers:**
+- GET `/api/backup/export.csv` route (behind auth)
+- CSV with all transaction fields (coin symbol, exchange name, not IDs)
+- Content-Disposition header for browser download
+- UTF-8 with optional BOM
+- Formula-injection escaping on free-text fields
+
+**Uses:** `csv-stringify`, Drizzle ORM (existing queries)
+
+**Avoids:** Pitfall 8 (formula injection)
+
+**Depends on:** Phase 1 (auth middleware)
+
+**Research flags:** None — straightforward; `csv-stringify` handles RFC 4180 correctly.
+
+---
+
+### Phase 4: CSV Import with Validation & Dedupe (highest complexity, most risk)
+
+**Rationale:** Most complex feature (untrusted input, dedupe, FK resolution). Depends on Phase 3's export format as single source of truth.
+
+**Delivers:**
+- POST `/api/backup/import` route (behind auth) accepting CSV upload
+- Row-by-row parsing with Decimal.js (never through `Number()`)
+- FK resolution: symbol → `coinId`, exchange name → `exchangeId`
+- Dedupe on exact content match (date, type, symbol, quantity, valueBrl, feeBrl, exchangeName, origin)
+- Import preview: rows read, inserted, skipped, rejected with reasons
+- User confirmation before committing
+- Atomic transaction: all-or-nothing
+- Row sorting by date (validates position sufficiency chronologically)
+- Origin field forced to `'csv-import'` server-side
+
+**Uses:** `csv-parse`, Drizzle ORM, Decimal.js, existing transaction-creation validation (reused)
+
+**Avoids:** Pitfalls 1–3 (dedupe, decimal format, batch-order validation)
+
+**Depends on:** Phase 1 (auth), Phase 3 (export format)
+
+**Verification required:**
+- Round-trip test: export → wipe DB → import → verify equivalence
+- Cross-instance dedupe: import same CSV with different coin/exchange seed order
+- Shuffled-order import: re-order rows, confirm success
+- Negative-position test: move sell before buy, confirm atomic rejection
+
+**Research flags:** CSV import logic is sound but needs verification: (1) Ensure transaction-create path can be reused from import; (2) Document dedupe key explicitly as contract; (3) Write verification tests before landing.
+
+---
 
 ### Phase Ordering Rationale
 
-- The Position Engine must have passing tests before any UI is built. Wiring UI to a buggy engine embeds the bug in a context where it is harder to isolate.
-- Price enrichment is Phase 3, not Phase 2, because IR reporting must be demonstrably price-independent before the price layer exists. If both are built simultaneously, the separation discipline tends to erode.
-- The Bens e Direitos report is Phase 4 rather than bundled with the position view because it needs real user data to validate, and the R$5k threshold and timezone edge cases require a mature engine.
+1. **Auth first** → enables realistic testing of other phases; avoids retrofit risk
+2. **Dark mode second** → wide surface (mechanical, low risk); login screen dark-aware from start
+3. **CSV export third** → read-only, lower risk; produces real files for import testing
+4. **CSV import fourth** → highest complexity; benefits from export files; depends on export format
 
-### Research Flags
-
-Phases likely needing deeper research during planning:
-- **Phase 4 (Bens e Direitos):** Grupo 08 sub-code assignments for less common tokens may need verification against the current year's IRPF normativa. Codes can change annually.
-
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Data Foundation):** Drizzle + better-sqlite3 + Decimal.js patterns are thoroughly documented and stable.
-- **Phase 2 (Core UI):** React + Hono + TanStack Query patterns are well-established.
-- **Phase 3 (Price Enrichment):** CoinGecko integration is straightforward; main validation is a live API smoke test.
+**Within CSV:** Before Phase 4 planning, check whether existing `routes/transactions.ts` create-transaction path can be called directly per CSV row (reuse validation), or whether logic needs extracting to `src/engine/`. This is a reading task only.
 
 ---
 
@@ -143,42 +209,47 @@ Phases with standard patterns (skip research-phase):
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM | All packages stable and widely adopted; version compatibility cross-checked against npm and official docs |
-| Features | MEDIUM | Brazilian tax rules cross-checked across 5+ Brazilian sources; competitor landscape from public docs |
-| Architecture | MEDIUM | Core patterns (event sourcing, recompute-on-read, price isolation) well-established for financial apps; IR encoding confirmed via multiple sources |
-| Pitfalls | MEDIUM | Five critical pitfalls specific to Brazilian tax domain are well-sourced; float and SQLite pitfalls are universal |
+| **Stack** | MEDIUM-HIGH | v1.0 baseline proven (HIGH); v1.1 additions well-established packages (MEDIUM) with versions verified directly against npm registry (MEDIUM-HIGH). No novel choices. |
+| **Features** | MEDIUM | Feature set explicitly decided in PROJECT.md (HIGH). Definitions clear, MVP-scoped (MEDIUM). Complexity estimates based on websearch + codebase inspection (MEDIUM). |
+| **Architecture** | MEDIUM-HIGH | Auth patterns (route-order, signed cookies, DB sessions) are industry-standard, Hono docs verified (MEDIUM-HIGH). Dark mode confirmed via Tailwind v4 + shadcn docs (MEDIUM-HIGH). CSV patterns sound but execution-dependent (MEDIUM — dedupe is high-risk). Codebase integration read directly (HIGH). |
+| **Pitfalls** | LOW-MEDIUM | Password hashing sourced via websearch (LOW, needs OWASP verification). CSV pitfalls well-researched (MEDIUM-HIGH). Dark mode cross-checked (MEDIUM-HIGH). Aggregated as LOW-MEDIUM due to password-hashing gap. |
 
-**Overall confidence:** MEDIUM
+**Overall confidence: MEDIUM** — Stack and architecture patterns are solid. V1.1 introduces significant implementation complexity (especially CSV dedupe). Execution risk is high because small mistakes have silent, data-corrupting consequences.
 
 ### Gaps to Address
 
-- **CoinGecko coin ID mapping for altcoins:** Research confirms BTC/ETH map to `bitcoin`/`ethereum`, but the strategy for arbitrary altcoins (hardcoded top-N list vs /coins/list endpoint integration) is unresolved. Decide in Phase 3 planning.
-- **Grupo 08 IR sub-code assignments:** Confirm current year's IRPF normativa before Phase 4, as codes change annually.
-- **Timezone for Dec 31 snapshot:** Decide explicitly whether Dec 31 cutoff uses BRT (UTC-3) or UTC, and add a unit test. Transactions at 23:50 BRT on Dec 31 are in scope for that year.
-- **Fee capture UX:** An explicit taxa field on the buy form is recommended over instructing users to include fees in the total. Decide in Phase 2 planning.
+1. **Password hashing library choice finalization** — Currently suggests `argon2` (OWASP 2026 default), `bcrypt` as fallback. *Handle in planning:* Verify against [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Finalize before Phase 1 planning.
+
+2. **CSV round-trip test infrastructure** — Phase 4 requires property-test-style verification (export → wipe → import → export; diff should be empty). *Handle in planning:* Set up reusable test fixture. Also required: cross-instance dedupe test and shuffled-order import test.
+
+3. **Integration point: transaction-creation reuse** — Before Phase 4 planning, inspect `routes/transactions.ts` to check whether create-transaction path can be called directly from import per-row, or whether logic needs extracting. This is a "read and decide" task.
+
+4. **Decimal.js round-trip semantics** — Verify whether `new Decimal("10.50").toString()` equals the original or changes formatting. *Handle in planning:* Simple test during Phase 3; if formatting differs, document rule and apply consistently on both export/import.
 
 ---
 
 ## Sources
 
-### Primary (authoritative)
-- Instrução Normativa RFB 1.888/2019 — foundational crypto reporting obligations in Brazil
-- Receita Federal: declaração de operações com criptoativos — official guidance
+### Primary (HIGH confidence)
 
-### Secondary (MEDIUM confidence — multiple sources agree)
-- [Blocktrends: Como declarar criptomoedas IR 2026](https://blocktrends.com.br/como-declarar-criptomoedas-imposto-renda-2026/) — preço médio rule, Grupo 08 codes, R$5k threshold
-- [Nubank: Como declarar criptomoedas no IR](https://blog.nubank.com.br/como-declarar-criptomoedas-imposto-de-renda/) — custo de aquisição rule
-- [CoinTracker: Brazil crypto tax guide](https://www.cointracker.io/blog/brazil-crypto-tax-guide) — Bens e Direitos declaration rules
-- [KoinX: How to declare crypto in Brazil](https://www.koinx.com/tax-guides/declare-crypto-tax-return-brazil) — threshold and snapshot rules
-- [declarandobitcoin.com.br: Venda, permuta e transferencia](https://www.declarandobitcoin.com.br/post/venda-permuta-e-transfer%C3%AAncia-quais-opera%C3%A7%C3%B5es-geram-imposto-em-criptomoedas) — sell does not change preço médio
+- `src/server/index.ts`, `src/db/schema.ts`, `src/api/client.ts`, `src/App.tsx`, `src/index.css`, `package.json` — Direct codebase read
+- `.planning/PROJECT.md` — Direct project read (milestone scope and constraints)
+- `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, `PITFALLS.md` — Research deliverables
 
-### Tertiary (LOW confidence — needs validation at implementation)
-- npm package pages for better-sqlite3, decimal.js, drizzle-orm, @tanstack/react-query, tailwindcss, hono
-- CoinGecko API pricing and rate limit docs
-- shadcn/ui Tailwind v4 docs
-- Drizzle ORM SQLite docs
+### Secondary (MEDIUM confidence)
+
+- [Hono Cookie Helper docs](https://hono.dev/docs/helpers/cookie) — WebFetch verification
+- [Tailwind CSS Dark Mode (v4)](https://tailwindcss.com/docs/dark-mode) — WebFetch verification
+- [shadcn/ui Tailwind v4 guide](https://ui.shadcn.com/docs/dark-mode/vite) — WebFetch verification
+- npm registry direct queries — Versions verified 2026-07-17
+
+### Tertiary (LOW confidence, needs validation)
+
+- Argon2id vs bcrypt 2026 guidance — Websearch (LOW). *Recommendation:* Cross-check against OWASP before finalizing.
+- CSV injection prevention — Websearch (LOW). *Recommendation:* Verify against OWASP CSV Injection testing guide.
 
 ---
 
-*Research completed: 2026-07-03*
-*Ready for roadmap: yes*
+*Research synthesis: Crypto Organizer v1.1*  
+*Completed: 2026-07-17*  
+*Status: Ready for roadmap creation*
