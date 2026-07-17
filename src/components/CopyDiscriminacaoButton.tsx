@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { AlertTriangle, Check, Copy } from 'lucide-react'
 
 interface CopyDiscriminacaoButtonProps {
   text: string
@@ -13,9 +13,15 @@ interface CopyDiscriminacaoButtonProps {
  * every line, so filling it with the reserved gray-900 accent would blow
  * the 10% accent budget (UI-SPEC Color). Uses the native clipboard API
  * directly — no library, no deprecated document-command-based fallback.
+ *
+ * A rejected `writeText` (permission denied, focus lost, or the API being
+ * unavailable outside a secure context once this app is hosted) surfaces a
+ * distinct "Não foi possível copiar" state instead of silently no-op'ing —
+ * this button's only job is producing text the user pastes verbatim into
+ * the IRPF program, so a silent failure is worse than a loud one.
  */
 export function CopyDiscriminacaoButton({ text }: CopyDiscriminacaoButtonProps) {
-  const [copied, setCopied] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -27,10 +33,21 @@ export function CopyDiscriminacaoButton({ text }: CopyDiscriminacaoButtonProps) 
   }, [])
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    timeoutRef.current = setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(text)
+      setStatus('copied')
+    } catch {
+      setStatus('failed')
+    }
+    timeoutRef.current = setTimeout(() => setStatus('idle'), 2000)
   }
+
+  const label =
+    status === 'copied'
+      ? 'Copiado!'
+      : status === 'failed'
+        ? 'Não foi possível copiar'
+        : 'Copiar Discriminação'
 
   return (
     <button
@@ -38,8 +55,14 @@ export function CopyDiscriminacaoButton({ text }: CopyDiscriminacaoButtonProps) 
       onClick={handleCopy}
       className="flex cursor-pointer items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 hover:bg-gray-100"
     >
-      {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-      <span aria-live="polite">{copied ? 'Copiado!' : 'Copiar Discriminação'}</span>
+      {status === 'copied' ? (
+        <Check className="h-4 w-4 text-green-600" />
+      ) : status === 'failed' ? (
+        <AlertTriangle className="h-4 w-4 text-red-600" />
+      ) : (
+        <Copy className="h-4 w-4" />
+      )}
+      <span aria-live="polite">{label}</span>
     </button>
   )
 }

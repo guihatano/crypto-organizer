@@ -89,6 +89,21 @@ describe('CopyDiscriminacaoButton', () => {
     })
   })
 
+  it('shows "Não foi possível copiar" and reverts after ~2s when writeText rejects', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'))
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+
+    render(<CopyDiscriminacaoButton text="texto de exemplo" />)
+
+    await user.click(screen.getByRole('button', { name: /Copiar Discriminação/ }))
+
+    expect(screen.getByRole('button', { name: 'Não foi possível copiar' })).toBeTruthy()
+  })
+
   it('is never disabled — a line with missing CNPJ/exchange still copies its text', async () => {
     const user = userEvent.setup()
     const writeText = stubClipboardWriteText()

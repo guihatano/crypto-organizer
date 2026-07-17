@@ -81,10 +81,10 @@ irReportRoute.get('/years', (c) => {
 // route, which deliberately tolerates a flaky external API).
 irReportRoute.get('/', (c) => {
   const yearParam = c.req.query('year')
-  const year = Number(yearParam)
-  if (!yearParam || !Number.isInteger(year) || String(year).length !== 4) {
+  if (!yearParam || !/^\d{4}$/.test(yearParam)) {
     return c.json({ error: 'Parâmetro year inválido — informe um ano com 4 dígitos.' }, 400)
   }
+  const year = Number(yearParam)
 
   const years = ledgerYears()
   if (!years.includes(year)) {

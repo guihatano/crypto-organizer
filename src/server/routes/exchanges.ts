@@ -70,7 +70,7 @@ exchangesRoute.patch('/:id', async (c) => {
   }
 
   const body = await c.req.json<PatchExchangeBody>().catch(() => null)
-  if (!body) {
+  if (!body || typeof body !== 'object') {
     return c.json({ error: 'Corpo da requisição inválido.' }, 400)
   }
 
