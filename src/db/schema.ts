@@ -79,9 +79,45 @@ export const transactions = sqliteTable(
   ],
 )
 
+/**
+ * auth_credentials — the single-user login credential (Phase 4, AUTH-01/AUTH-06).
+ * There is exactly one row in this table; its existence is the source of
+ * truth behind the first-run setup gate. password_hash is the ONLY form
+ * the password ever takes at rest — an Argon2id hash, never plaintext or
+ * any reversible encoding. failed_attempts/last_failed_at back the D-02
+ * brute-force backoff (never a hard permanent lockout).
+ */
+export const authCredentials = sqliteTable('auth_credentials', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  username: text('username').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  failedAttempts: integer('failed_attempts').notNull().default(0),
+  lastFailedAt: text('last_failed_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/**
+ * sessions — server-validated session store (Phase 4, D-01/AUTH-03/AUTH-04).
+ * `id` is an opaque random UUID (node:crypto randomUUID()), NOT an
+ * autoincrement integer — it doubles as the session token carried inside
+ * the signed cookie. expires_at is the server-side authority for
+ * validity; the cookie's own maxAge is never trusted alone. Deleting a
+ * row is how a session is revoked (AUTH-03).
+ */
+export const sessions = sqliteTable('sessions', {
+  id: text('id').primaryKey(),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
 export type Coin = typeof coins.$inferSelect
 export type NewCoin = typeof coins.$inferInsert
 export type Exchange = typeof exchanges.$inferSelect
 export type NewExchange = typeof exchanges.$inferInsert
 export type TransactionRow = typeof transactions.$inferSelect
 export type NewTransactionRow = typeof transactions.$inferInsert
+export type AuthCredential = typeof authCredentials.$inferSelect
+export type NewAuthCredential = typeof authCredentials.$inferInsert
+export type Session = typeof sessions.$inferSelect
+export type NewSession = typeof sessions.$inferInsert

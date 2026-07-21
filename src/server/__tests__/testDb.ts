@@ -46,6 +46,23 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 CREATE INDEX IF NOT EXISTS idx_transactions_coin_date ON transactions (coin_id, date);
 CREATE INDEX IF NOT EXISTS idx_transactions_date_created ON transactions (date, created_at);
+
+CREATE TABLE IF NOT EXISTS auth_credentials (
+  id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  username text NOT NULL,
+  password_hash text NOT NULL,
+  failed_attempts integer DEFAULT 0 NOT NULL,
+  last_failed_at text,
+  created_at text NOT NULL,
+  updated_at text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS auth_credentials_username_unique ON auth_credentials (username);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id text PRIMARY KEY NOT NULL,
+  expires_at text NOT NULL,
+  created_at text NOT NULL
+);
 `
 
 let schemaCreated = false
@@ -59,7 +76,9 @@ export function resetTestDb(): void {
     sqlite.exec(SCHEMA_SQL)
     schemaCreated = true
   }
-  sqlite.exec('DELETE FROM transactions; DELETE FROM coins; DELETE FROM exchanges;')
+  sqlite.exec(
+    'DELETE FROM transactions; DELETE FROM coins; DELETE FROM exchanges; DELETE FROM sessions; DELETE FROM auth_credentials;',
+  )
 }
 
 export interface SeedFixture {
