@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { authRoute } from './routes/auth.ts'
 import { coinsRoute } from './routes/coins.ts'
 import { exchangesRoute } from './routes/exchanges.ts'
 import { irReportRoute } from './routes/irReport.ts'
@@ -10,7 +11,11 @@ import { transactionsRoute } from './routes/transactions.ts'
 
 const app = new Hono()
 
+// --- PUBLIC (registered before the auth gate — Task 3 adds the gate) ---
 app.get('/api/health', (c) => c.json({ status: 'ok' }))
+app.route('/api/auth', authRoute) // /setup, /login, /logout, /status
+
+// --- PROTECTED (the /api/* gate is added in Task 3 of this plan) ---
 app.route('/api/coins', coinsRoute)
 app.route('/api/exchanges', exchangesRoute)
 app.route('/api/ir-report', irReportRoute)

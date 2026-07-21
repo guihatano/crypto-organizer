@@ -11,3 +11,9 @@
 // app.db file instead of an isolated in-memory database, and
 // resetTestDb()'s DELETE statements were wiping its rows on every run.
 process.env.DATABASE_PATH = ':memory:'
+
+// Fixed test value so signed cookies (session cookie HMAC) verify
+// consistently across the whole run — same reasoning as DATABASE_PATH
+// above: this must be set before src/server/cookies.ts or index.ts is
+// ever imported (Plan 04-02).
+process.env.SESSION_SECRET = 'test-session-secret-do-not-use-in-prod'
