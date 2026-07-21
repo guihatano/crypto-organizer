@@ -49,6 +49,29 @@ want the default coins and exchanges back.
 The command uses `rm -f` and targets the default `app.db`. If you point
 `DATABASE_PATH` at a different file, delete that file manually instead.
 
+## Autenticação / Recuperação de acesso
+
+O app tem um login usuário+senha de uso pessoal, com setup na primeira vez
+que o servidor roda (sem tela de cadastro pública). Duas coisas a saber:
+
+- **`SESSION_SECRET` é obrigatória.** É a chave que assina o cookie de
+  sessão. Sem ela (ou vazia), o servidor **recusa iniciar** e imprime uma
+  mensagem clara no console. Gere um valor e coloque no seu `.env` local
+  (nunca commitado):
+
+  ```bash
+  openssl rand -hex 32
+  ```
+
+  Copie o resultado para `SESSION_SECRET=` no seu `.env` (`.env.example`
+  já traz a entrada).
+
+- **Esqueceu a senha?** Não existe fluxo de recuperação pela interface —
+  é uso pessoal, então o reset é manual direto no banco SQLite: apague a
+  linha da tabela `auth_credentials` (por exemplo, com `sqlite3 app.db
+  "DELETE FROM auth_credentials;"`). No próximo acesso o app volta a
+  mostrar a tela de configuração inicial, como se fosse a primeira vez.
+
 ## Notes
 
 - Amounts and quantities are stored as `TEXT` in SQLite and parsed with
