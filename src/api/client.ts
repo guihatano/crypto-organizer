@@ -9,6 +9,18 @@ export class ApiError extends Error {
   }
 }
 
+// D-06: centralized global-401 handler. Any non-/auth/ response that comes
+// back 401 (a session that expired or was revoked mid-use) invokes this
+// callback so the app shell can drop back to the Login screen. /auth/*
+// requests (setup/login/logout/status) handle their own error responses
+// inline and must never trigger this — a wrong-password login attempt is
+// not a "session expired" event.
+let unauthorizedHandler: (() => void) | null = null
+
+export function registerUnauthorizedHandler(fn: () => void): void {
+  unauthorizedHandler = fn
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -16,6 +28,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!res.ok) {
+    if (res.status === 401 && !path.startsWith('/auth/')) {
+      unauthorizedHandler?.()
+    }
+
     const body: unknown = await res.json().catch(() => null)
     const message =
       (body && typeof body === 'object' && 'error' in body
@@ -150,4 +166,11 @@ export interface IrReportResponse {
 export interface IrReportYearsResponse {
   years: number[]
   default_year: number | null
+}
+
+// Phase 4 — single-user auth (D-05). Computed purely from server state;
+// the client never invents this value.
+export interface AuthStatus {
+  setup_required: boolean
+  authenticated: boolean
 }
