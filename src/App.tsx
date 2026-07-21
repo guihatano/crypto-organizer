@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { TransactionListItem } from './api/client.ts'
 import { usePrices, useTransactionsList } from './hooks/useTransactions.ts'
+import { useAuthStatus } from './hooks/useAuth.ts'
 import { PositionTable } from './components/PositionTable.tsx'
 import { SummaryCards } from './components/SummaryCards.tsx'
 import { CurrencyToggle } from './components/CurrencyToggle.tsx'
@@ -10,6 +11,9 @@ import { TransactionForm } from './components/TransactionForm.tsx'
 import { EmptyState } from './components/EmptyState.tsx'
 import { ViewSwitcher, type AppView } from './components/ViewSwitcher.tsx'
 import { IrReportPage } from './components/IrReportPage.tsx'
+import { SetupForm } from './components/SetupForm.tsx'
+import { LoginForm } from './components/LoginForm.tsx'
+import { LogoutButton } from './components/LogoutButton.tsx'
 
 const CURRENCY_STORAGE_KEY = 'currency'
 
@@ -36,7 +40,51 @@ function formatUpdatedAgo(fetchedAt: string | null): string {
   return `Atualizado há ${Math.floor(diffMin / 60)} h`
 }
 
+/**
+ * The auth-status-driven shell (D-05): renders exactly one of
+ * Checking / Setup / Login / App from GET /api/auth/status, with no
+ * router — a plain conditional render, the same pattern ViewSwitcher
+ * already uses for Dashboard/Relatório IR. The client never decides auth
+ * locally as the security boundary; every state here is a direct
+ * reflection of server state.
+ */
 function App() {
+  const { data: authStatus, isLoading: authLoading, isError: authError } = useAuthStatus()
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-white">
+        <p className="text-sm text-gray-400">Carregando...</p>
+      </div>
+    )
+  }
+
+  if (authError) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-white px-4">
+        <p className="text-sm text-red-500">
+          Não foi possível verificar o login. Verifique se o servidor está rodando.
+        </p>
+      </div>
+    )
+  }
+
+  if (authStatus?.setup_required) {
+    return <SetupForm />
+  }
+
+  if (!authStatus?.authenticated) {
+    return <LoginForm />
+  }
+
+  return <AuthenticatedApp />
+}
+
+/**
+ * Today's existing authenticated app (header + main), unchanged apart
+ * from the added Sair control in the header.
+ */
+function AuthenticatedApp() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<TransactionListItem | null>(null)
   const [currency, setCurrency] = useState<'BRL' | 'USD'>(readStoredCurrency)
@@ -115,6 +163,7 @@ function App() {
           >
             Nova transação
           </button>
+          <LogoutButton />
         </div>
       </header>
 
