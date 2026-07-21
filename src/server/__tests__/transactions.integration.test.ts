@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDb, seedCoin, seedFixture } from './testDb.ts'
+import { seedAuthedSession } from './testAuth.ts'
 import app from '../index.ts'
+
+// Re-seeded in every describe block's beforeEach (after resetTestDb(),
+// which clears the sessions table) — every /api request below carries
+// this real signed cookie so authMiddleware runs for real (never
+// bypassed/disabled in tests).
+let cookieHeader = ''
 
 async function postBuy(body: Record<string, unknown>) {
   const res = await app.request('/api/transactions/buy', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
@@ -14,45 +21,50 @@ async function postBuy(body: Record<string, unknown>) {
 async function postSell(body: Record<string, unknown>) {
   const res = await app.request('/api/transactions/sell', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
 }
 
 async function getPositions() {
-  const res = await app.request('/api/positions')
+  const res = await app.request('/api/positions', { headers: { Cookie: cookieHeader } })
   return { status: res.status, json: await res.json() }
 }
 
 async function getTransactions() {
-  const res = await app.request('/api/transactions')
+  const res = await app.request('/api/transactions', { headers: { Cookie: cookieHeader } })
   return { status: res.status, json: await res.json() }
 }
 
 async function getRate(from: string, date: string) {
-  const res = await app.request(`/api/rate?from=${from}&date=${date}`)
+  const res = await app.request(`/api/rate?from=${from}&date=${date}`, {
+    headers: { Cookie: cookieHeader },
+  })
   return { status: res.status, json: await res.json() }
 }
 
 async function patchTransaction(id: number, body: Record<string, unknown>) {
   const res = await app.request(`/api/transactions/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
 }
 
 async function deleteTransaction(id: number) {
-  const res = await app.request(`/api/transactions/${id}`, { method: 'DELETE' })
+  const res = await app.request(`/api/transactions/${id}`, {
+    method: 'DELETE',
+    headers: { Cookie: cookieHeader },
+  })
   return { status: res.status, json: await res.json() }
 }
 
 async function postCoin(body: Record<string, unknown>) {
   const res = await app.request('/api/coins', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
@@ -61,15 +73,16 @@ async function postCoin(body: Record<string, unknown>) {
 async function postExchange(body: Record<string, unknown>) {
   const res = await app.request('/api/exchanges', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
 }
 
 describe('POST /api/transactions/buy', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('records the worked-example buy and returns 201 with recomputed positions', async () => {
@@ -240,8 +253,9 @@ describe('POST /api/transactions/buy', () => {
 })
 
 describe('GET /api/positions', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('matches calculatePositions() over the current ledger (never a cached/derived value)', async () => {
@@ -277,8 +291,9 @@ describe('GET /api/positions', () => {
 })
 
 describe('GET /api/transactions', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('returns rows sorted chronologically (date asc, created_at asc) and includes the exchange name', async () => {
@@ -334,8 +349,9 @@ describe('GET /api/transactions', () => {
 })
 
 describe('POST /api/transactions/sell', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('reduces quantity and custo proportionally, preco medio unchanged (POS-03)', async () => {
@@ -430,9 +446,10 @@ describe('POST /api/transactions/sell', () => {
 })
 
 describe('GET /api/rate', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
     seedCoin('USDT', 'Tether', 'tether')
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   afterEach(() => {
@@ -481,8 +498,9 @@ describe('GET /api/rate', () => {
 })
 
 describe('PATCH /api/transactions/:id and DELETE /api/transactions/:id', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('edits a buy quantity and recomputes positions from the full ledger (TX-04, D-12)', async () => {
@@ -698,8 +716,9 @@ describe('PATCH /api/transactions/:id and DELETE /api/transactions/:id', () => {
 })
 
 describe('POST /api/coins and POST /api/exchanges', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('adds a user coin and rejects a duplicate symbol with 400 (D-02)', async () => {

@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetTestDb, seedExchange, seedFixture } from './testDb.ts'
+import { seedAuthedSession } from './testAuth.ts'
 import app from '../index.ts'
+
+// Re-seeded in every describe block's beforeEach (after resetTestDb(),
+// which clears the sessions table) — every /api request below carries
+// this real signed cookie so authMiddleware runs for real (never
+// bypassed/disabled in tests).
+let cookieHeader = ''
 
 async function postBuy(body: Record<string, unknown>) {
   const res = await app.request('/api/transactions/buy', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
@@ -14,7 +21,7 @@ async function postBuy(body: Record<string, unknown>) {
 async function patchExchange(id: number | string, body: unknown) {
   const res = await app.request(`/api/exchanges/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
@@ -23,7 +30,7 @@ async function patchExchange(id: number | string, body: unknown) {
 async function patchExchangeRawBody(id: number | string, rawBody: string) {
   const res = await app.request(`/api/exchanges/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: rawBody,
   })
   return { status: res.status, json: await res.json() }
@@ -32,7 +39,7 @@ async function patchExchangeRawBody(id: number | string, rawBody: string) {
 async function patchCoin(id: number | string, body: unknown) {
   const res = await app.request(`/api/coins/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
@@ -41,19 +48,19 @@ async function patchCoin(id: number | string, body: unknown) {
 async function patchCoinRawBody(id: number | string, rawBody: string) {
   const res = await app.request(`/api/coins/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: rawBody,
   })
   return { status: res.status, json: await res.json() }
 }
 
 async function getExchanges() {
-  const res = await app.request('/api/exchanges')
+  const res = await app.request('/api/exchanges', { headers: { Cookie: cookieHeader } })
   return { status: res.status, json: (await res.json()) as Array<{ id: number; cnpj?: string | null }> }
 }
 
 async function getCoins() {
-  const res = await app.request('/api/coins')
+  const res = await app.request('/api/coins', { headers: { Cookie: cookieHeader } })
   return {
     status: res.status,
     json: (await res.json()) as Array<{ id: number; grupo08_subcodigo?: string | null }>,
@@ -61,13 +68,14 @@ async function getCoins() {
 }
 
 async function getIrReport(year: number | string) {
-  const res = await app.request(`/api/ir-report?year=${year}`)
+  const res = await app.request(`/api/ir-report?year=${year}`, { headers: { Cookie: cookieHeader } })
   return { status: res.status, json: await res.json() }
 }
 
 describe('PATCH /api/exchanges/:id', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('salva um CNPJ e o reflete em GET /api/exchanges (IR-04)', async () => {
@@ -124,8 +132,9 @@ describe('PATCH /api/exchanges/:id', () => {
 })
 
 describe('PATCH /api/coins/:id', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('salva um sub-código Grupo 08 e o reflete em GET /api/coins (D-07)', async () => {
@@ -180,8 +189,9 @@ describe('PATCH /api/coins/:id', () => {
 })
 
 describe('Reflexo do cadastro na Discriminação (fluxo ponta a ponta)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('CNPJ e sub-código salvos aparecem em discriminacao_text; limpar o CNPJ restaura o placeholder sem nunca dar erro (IR-03/IR-04/D-07/D-08)', async () => {
@@ -226,8 +236,9 @@ describe('Reflexo do cadastro na Discriminação (fluxo ponta a ponta)', () => {
 })
 
 describe('GET /api/exchanges e GET /api/coins projetam os novos campos', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('GET /api/exchanges inclui cnpj (null antes de qualquer PATCH)', async () => {

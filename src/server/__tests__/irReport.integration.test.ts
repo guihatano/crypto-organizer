@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDb, seedExchange, seedFixture } from './testDb.ts'
+import { seedAuthedSession } from './testAuth.ts'
 import app from '../index.ts'
+
+// Re-seeded in every describe block's beforeEach (after resetTestDb(),
+// which clears the sessions table) — every /api request below carries
+// this real signed cookie so authMiddleware runs for real (never
+// bypassed/disabled in tests).
+let cookieHeader = ''
 
 async function postBuy(body: Record<string, unknown>) {
   const res = await app.request('/api/transactions/buy', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
@@ -14,30 +21,31 @@ async function postBuy(body: Record<string, unknown>) {
 async function postSell(body: Record<string, unknown>) {
   const res = await app.request('/api/transactions/sell', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
 }
 
 async function getIrReport(year: number | string) {
-  const res = await app.request(`/api/ir-report?year=${year}`)
+  const res = await app.request(`/api/ir-report?year=${year}`, { headers: { Cookie: cookieHeader } })
   return { status: res.status, json: await res.json() }
 }
 
 async function getIrReportNoYear() {
-  const res = await app.request('/api/ir-report')
+  const res = await app.request('/api/ir-report', { headers: { Cookie: cookieHeader } })
   return { status: res.status, json: await res.json() }
 }
 
 async function getIrReportYears() {
-  const res = await app.request('/api/ir-report/years')
+  const res = await app.request('/api/ir-report/years', { headers: { Cookie: cookieHeader } })
   return { status: res.status, json: await res.json() }
 }
 
 describe('GET /api/ir-report', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('inclui transação de 2025-12-31 no relatório de 2025 e exclui uma de 2026-01-01 (corte 31/12)', async () => {
@@ -185,8 +193,9 @@ describe('GET /api/ir-report', () => {
 })
 
 describe('GET /api/ir-report validação (ASVS V12)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('retorna 400 com mensagem pt-BR quando year está ausente', async () => {
@@ -216,8 +225,9 @@ describe('GET /api/ir-report validação (ASVS V12)', () => {
 })
 
 describe('GET /api/ir-report/years', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   afterEach(() => {

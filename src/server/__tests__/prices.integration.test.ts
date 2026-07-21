@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDb, seedFixture, setCoinPriceCache } from './testDb.ts'
+import { seedAuthedSession } from './testAuth.ts'
 import { toDecimal } from '../../lib/decimal.ts'
 
 // Stubbed BEFORE importing the app so every route that imports coingecko.ts
@@ -13,24 +14,30 @@ import { getBatchPrices } from '../coingecko.ts'
 
 const getBatchPricesMock = vi.mocked(getBatchPrices)
 
+// Re-seeded in beforeEach (after resetTestDb(), which clears the sessions
+// table) — every /api request below carries this real signed cookie so
+// authMiddleware runs for real (never bypassed/disabled in tests).
+let cookieHeader = ''
+
 async function postBuy(body: Record<string, unknown>) {
   const res = await app.request('/api/transactions/buy', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
     body: JSON.stringify(body),
   })
   return { status: res.status, json: await res.json() }
 }
 
 async function getPrices() {
-  const res = await app.request('/api/prices')
+  const res = await app.request('/api/prices', { headers: { Cookie: cookieHeader } })
   return { status: res.status, json: await res.json() }
 }
 
 describe('GET /api/prices', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetTestDb()
     getBatchPricesMock.mockReset()
+    ;({ cookieHeader } = await seedAuthedSession())
   })
 
   it('enriches a coin with a fresh quote (BRL + USD, market value, pnl, pnl_pct, stale=false)', async () => {
