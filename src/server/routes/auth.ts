@@ -15,6 +15,17 @@ import { clearSessionCookie, issueSessionCookie, readSignedSessionId } from '../
 
 export const authRoute = new Hono()
 
+/**
+ * A real Argon2id hash (m=19456,t=2,p=1 — the same cost as a stored
+ * credential) of a throwaway value, computed once at deploy time. Login
+ * verifies against this whenever the credential is absent or the username
+ * does not match, so an unknown username costs the same wall-clock time as
+ * a wrong password — closing the timing-based user-enumeration oracle
+ * (T-04-12). It is never a valid login secret.
+ */
+const DUMMY_PASSWORD_HASH =
+  '$argon2id$v=19$m=19456,p=1,t=2$+DqagcMFx0jiDAmooqECbg$IFX1dDfFztzQFmbSGNYo7v0GMdm/qM6ObGJeY+JIP7g'
+
 interface SetupBody {
   username?: string
   password?: string
@@ -93,15 +104,16 @@ authRoute.post('/login', async (c) => {
     return c.json({ error: 'Usuário ou senha incorretos.' }, 401)
   }
 
-  if (!body || !body.username || !body.password || !credential) {
-    return genericFailure()
-  }
-  if (body.username !== credential.username) {
-    return genericFailure()
-  }
+  // Always run exactly one Argon2 verify — against the stored hash when the
+  // username matches, otherwise against a fixed dummy hash — so every
+  // failure path (missing body, unknown username, wrong password) does the
+  // same expensive work and takes the same time. Response body AND response
+  // timing are now both generic (no user enumeration, T-04-12).
+  const hashToCheck =
+    credential && body?.username === credential.username ? credential.passwordHash : DUMMY_PASSWORD_HASH
+  const valid = await verifyPassword(hashToCheck, body?.password ?? '')
 
-  const valid = await verifyPassword(credential.passwordHash, body.password)
-  if (!valid) {
+  if (!body || !body.username || !body.password || !credential || body.username !== credential.username || !valid) {
     return genericFailure()
   }
 
