@@ -156,6 +156,30 @@ describe('POST /api/auth/login', () => {
     // assert the delay was actually applied, not wall-clock precision.
     expect(elapsedMs).toBeGreaterThanOrEqual(1900)
   }, 10_000)
+
+  it('invalidates the previously-issued session cookie when a new login succeeds (WR-02)', async () => {
+    const { cookieHeader: setupCookie } = await postSetup({
+      username: 'guilherme',
+      password: 'correct-horse-battery',
+    })
+
+    // The setup cookie authenticates before the second login.
+    const { json: before } = await getStatus(setupCookie ?? undefined)
+    expect(before.authenticated).toBe(true)
+
+    // A fresh login mints a new session and drops the old one.
+    const { status, cookieHeader: loginCookie } = await postLogin({
+      username: 'guilherme',
+      password: 'correct-horse-battery',
+    })
+    expect(status).toBe(200)
+
+    // The old cookie is now rejected; only the newest session is valid.
+    const { json: afterOld } = await getStatus(setupCookie ?? undefined)
+    expect(afterOld.authenticated).toBe(false)
+    const { json: afterNew } = await getStatus(loginCookie ?? undefined)
+    expect(afterNew.authenticated).toBe(true)
+  })
 })
 
 describe('POST /api/auth/logout', () => {

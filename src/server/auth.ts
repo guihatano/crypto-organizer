@@ -66,8 +66,18 @@ function sessionExpiryFromNow(): string {
   return new Date(Date.now() + SESSION_DURATION_MS).toISOString()
 }
 
-/** Creates a new session row with a random opaque id and expires_at = now + 7 days. Returns the session id. */
+/**
+ * Creates a new session row with a random opaque id and expires_at = now +
+ * 7 days. Returns the session id.
+ *
+ * This is a single-user app, so at most one session should ever be valid:
+ * before inserting, every prior session row is deleted. That (a) bounds the
+ * table so rows never accumulate unbounded, and (b) invalidates any
+ * previously-issued cookie on each new setup/login, so an older captured
+ * cookie can no longer outlive a fresh login for up to 7 days (WR-02).
+ */
 export function createSession(): string {
+  db.delete(sessions).run()
   const id = randomUUID()
   const now = new Date().toISOString()
   db.insert(sessions)
