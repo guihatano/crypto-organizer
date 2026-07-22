@@ -98,7 +98,11 @@ export function createSession(): string {
 export function getValidSession(sessionId: string): Session | null {
   const row = db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
   if (!row) return null
-  if (new Date(row.expiresAt).getTime() <= Date.now()) return null
+  // Fail closed: an unparseable expires_at yields NaN, and `NaN <= now` is
+  // false, which would otherwise treat a corrupt row as a valid session. An
+  // auth validity check must reject on any timestamp it cannot trust.
+  const expiry = new Date(row.expiresAt).getTime()
+  if (Number.isNaN(expiry) || expiry <= Date.now()) return null
   return row
 }
 

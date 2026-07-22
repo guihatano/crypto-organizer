@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetTestDb } from './testDb.ts'
+import { createSession, getValidSession } from '../auth.ts'
+import { sqlite } from '../../db/client.ts'
 import app from '../index.ts'
 
 function extractCookieHeader(res: Response): string | null {
@@ -235,5 +237,30 @@ describe('GET /api/auth/status', () => {
     const { status, json } = await getStatus()
     expect(status).toBe(200)
     expect(json).toEqual({ setup_required: false, authenticated: false })
+  })
+})
+
+describe('getValidSession', () => {
+  beforeEach(() => {
+    resetTestDb()
+  })
+
+  it('returns the row for a live session', () => {
+    const id = createSession()
+    expect(getValidSession(id)).not.toBeNull()
+  })
+
+  it('fails closed on an unparseable expires_at instead of treating it as valid (WR-03)', () => {
+    const id = createSession()
+    // Simulate a corrupt/hand-edited row: NaN <= now is false, which must
+    // NOT read as a still-valid session.
+    sqlite.prepare('UPDATE sessions SET expires_at = ? WHERE id = ?').run('not-a-date', id)
+    expect(getValidSession(id)).toBeNull()
+  })
+
+  it('rejects an expired session', () => {
+    const id = createSession()
+    sqlite.prepare('UPDATE sessions SET expires_at = ? WHERE id = ?').run('2000-01-01T00:00:00.000Z', id)
+    expect(getValidSession(id)).toBeNull()
   })
 })
