@@ -62,13 +62,18 @@ authRoute.post('/setup', async (c) => {
   }
 
   const body = await c.req.json<SetupBody>().catch(() => null)
-  if (!body || !body.username || !body.password || body.password.length < 8) {
+  // The server, not the client, is the authority: trim the username here so
+  // a direct API call can't persist a whitespace-only ("   ") credential
+  // that would then be impossible to match at login on a single-user app
+  // where setup can never be re-run (WR-04).
+  const username = body?.username?.trim()
+  if (!username || !body?.password || body.password.length < 8) {
     return c.json({ error: 'Dados inválidos.' }, 400)
   }
 
   let credential
   try {
-    credential = createCredential(body.username, await hashPassword(body.password))
+    credential = createCredential(username, await hashPassword(body.password))
   } catch {
     return c.json({ error: 'Uma conta já foi criada.' }, 409)
   }

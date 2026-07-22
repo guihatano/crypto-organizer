@@ -85,6 +85,16 @@ describe('POST /api/auth/setup', () => {
     expect(status).toBe(400)
     expect(json.error).toBeTruthy()
   })
+
+  it('rejects a whitespace-only username with 400 — the server trims, not just the client (WR-04)', async () => {
+    const { status, json } = await postSetup({ username: '   ', password: 'correct-horse-battery' })
+    expect(status).toBe(400)
+    expect(json.error).toBeTruthy()
+
+    // No credential was created, so setup is still available.
+    const { json: statusJson } = await getStatus()
+    expect(statusJson.setup_required).toBe(true)
+  })
 })
 
 describe('POST /api/auth/login', () => {
