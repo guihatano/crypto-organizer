@@ -69,7 +69,7 @@ export function DeleteConfirmDialog({
           <button
             type="button"
             disabled={isPending}
-            className="cursor-pointer rounded-md bg-(--color-destructive) px-4 py-2 text-sm font-medium text-(--color-accent-fg) hover:bg-(--color-destructive-hover) disabled:cursor-not-allowed disabled:opacity-50"
+            className="cursor-pointer rounded-md bg-(--color-destructive) px-4 py-2 text-sm font-medium text-(--color-destructive-fg) hover:bg-(--color-destructive-hover) disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onConfirm}
           >
             {isPending ? 'Excluindo...' : 'Excluir'}
