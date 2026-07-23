@@ -1,1 +1,65 @@
 @import 'tailwindcss';
+
+/*
+ * Dark-mode variant: class-based on <html> (not `data-theme`), per D-06
+ * and the UI-SPEC Implementation Notes. Both the anti-FOUC bootstrap
+ * script (index.html) and the runtime ThemeProvider (ThemeContext.tsx)
+ * toggle this same `.dark` class on document.documentElement.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantic color tokens (DARK-01/DARK-02/DARK-03, D-05/D-06/D-07).
+ * Declared as raw values here (NOT inside an inlined @theme block) so
+ * they stay reactive to the `.dark` class switch at runtime — inlining
+ * these into @theme would bake them in at build time and break live
+ * theme switching.
+ * Values are taken verbatim from the LOCKED Semantic Token Table in
+ * .planning/phases/05-dark-mode/05-UI-SPEC.md — do not re-derive.
+ *
+ * Consumed via arbitrary-value utilities (e.g. `bg-[--color-bg]`,
+ * `text-[--color-text]`, `border-[--color-border]`) which read these CSS
+ * custom properties directly, already reactive to `.dark` with no
+ * `@theme` mapping required.
+ *
+ * No transition on background-color/color is applied to html/body here —
+ * that would turn the anti-FOUC script's instant swap into a visible
+ * fade (UI-SPEC "No load-time transition flash").
+ */
+:root {
+  --color-bg: #ffffff;
+  --color-surface: #f9fafb;
+  --color-surface-hover: #f3f4f6;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-text-muted: #4b5563;
+  --color-text-subtle: #6b7280;
+  --color-accent: #111827;
+  --color-accent-hover: #374151;
+  --color-accent-fg: #ffffff;
+  --color-destructive: #dc2626;
+  --color-destructive-hover: #b91c1c;
+  --color-profit: #16a34a;
+  --color-loss: #dc2626;
+  --color-warning: #d97706;
+  --color-warning-bg: #fef3c7;
+}
+
+.dark {
+  --color-bg: #09090b;
+  --color-surface: #18181b;
+  --color-surface-hover: #27272a;
+  --color-border: #3f3f46;
+  --color-text: #fafafa;
+  --color-text-muted: #a1a1aa;
+  --color-text-subtle: #71717a;
+  --color-accent: #fafafa;
+  --color-accent-hover: #e4e4e7;
+  --color-accent-fg: #18181b;
+  --color-destructive: #f87171;
+  --color-destructive-hover: #ef4444;
+  --color-profit: #4ade80;
+  --color-loss: #f87171;
+  --color-warning: #fbbf24;
+  --color-warning-bg: #451a03;
+}
