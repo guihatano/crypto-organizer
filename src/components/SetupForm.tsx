@@ -54,38 +54,38 @@ export function SetupForm() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-white px-4">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 p-8">
-        <h2 className="mb-1 text-lg font-semibold text-gray-900">Configuração inicial</h2>
-        <p className="mb-6 text-sm text-gray-500">
+    <div className="flex min-h-svh items-center justify-center bg-[--color-bg] px-4">
+      <div className="w-full max-w-sm rounded-lg border border-[--color-border] p-8">
+        <h2 className="mb-1 text-lg font-semibold text-[--color-text]">Configuração inicial</h2>
+        <p className="mb-6 text-sm text-[--color-text-muted]">
           Crie o usuário e a senha que vão proteger o acesso ao Crypto Organizer. Esta tela só
           aparece uma vez — depois de criada a conta, ela não volta a aparecer.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="setup-username" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="setup-username" className="mb-1 block text-sm font-medium text-[--color-text]">
               Usuário
             </label>
             <input
               id="setup-username"
               type="text"
               autoComplete="username"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
           </div>
 
           <div>
-            <label htmlFor="setup-password" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="setup-password" className="mb-1 block text-sm font-medium text-[--color-text]">
               Senha
             </label>
             <input
               id="setup-password"
               type="password"
               autoComplete="new-password"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -94,7 +94,7 @@ export function SetupForm() {
           <div>
             <label
               htmlFor="setup-confirm-password"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className="mb-1 block text-sm font-medium text-[--color-text]"
             >
               Confirmar senha
             </label>
@@ -102,17 +102,17 @@ export function SetupForm() {
               id="setup-confirm-password"
               type="password"
               autoComplete="new-password"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
             {fieldError && (
-              <p role="alert" className="mt-1 text-sm text-red-600">
+              <p role="alert" className="mt-1 text-sm text-[--color-destructive]">
                 {fieldError}
               </p>
             )}
             {formError && (
-              <p role="alert" className="mt-1 text-sm text-red-600">
+              <p role="alert" className="mt-1 text-sm text-[--color-destructive]">
                 {formError}
               </p>
             )}
@@ -122,7 +122,7 @@ export function SetupForm() {
             <button
               type="submit"
               disabled={setup.isPending}
-              className="w-full cursor-pointer rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full cursor-pointer rounded-md bg-[--color-accent] px-4 py-2 text-sm font-medium text-[--color-accent-fg] hover:bg-[--color-accent-hover] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {setup.isPending ? 'Criando conta...' : 'Criar conta'}
             </button>

@@ -15,11 +15,11 @@ const SEGMENTS: { value: AppView; label: string }[] = [
  * copying CurrencyToggle's shape wholesale (role="group", aria-pressed per
  * segment, same active/inactive classes, native <button> keyboard
  * operability). The active segment is this phase's one new use of the
- * reserved gray-900 accent (UI-SPEC Color).
+ * reserved --color-accent (UI-SPEC Color).
  */
 export function ViewSwitcher({ value, onChange }: ViewSwitcherProps) {
   return (
-    <div role="group" aria-label="Visualização" className="flex overflow-hidden rounded-md border border-gray-200">
+    <div role="group" aria-label="Visualização" className="flex overflow-hidden rounded-md border border-[--color-border]">
       {SEGMENTS.map((segment) => {
         const active = segment.value === value
         return (
@@ -29,7 +29,7 @@ export function ViewSwitcher({ value, onChange }: ViewSwitcherProps) {
             aria-pressed={active}
             onClick={() => onChange(segment.value)}
             className={`cursor-pointer px-3 py-1.5 text-sm font-medium ${
-              active ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+              active ? 'bg-[--color-accent] text-[--color-accent-fg]' : 'text-[--color-text-muted] hover:bg-[--color-surface-hover]'
             }`}
           >
             {segment.label}

@@ -37,43 +37,43 @@ export function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-white px-4">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 p-8">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">Entrar</h2>
+    <div className="flex min-h-svh items-center justify-center bg-[--color-bg] px-4">
+      <div className="w-full max-w-sm rounded-lg border border-[--color-border] p-8">
+        <h2 className="mb-4 text-lg font-semibold text-[--color-text]">Entrar</h2>
 
         {sessionExpired && (
-          <p className="mb-4 text-sm text-gray-600">Sua sessão expirou. Faça login novamente.</p>
+          <p className="mb-4 text-sm text-[--color-text-muted]">Sua sessão expirou. Faça login novamente.</p>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="login-username" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="login-username" className="mb-1 block text-sm font-medium text-[--color-text]">
               Usuário
             </label>
             <input
               id="login-username"
               type="text"
               autoComplete="username"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
           </div>
 
           <div>
-            <label htmlFor="login-password" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="login-password" className="mb-1 block text-sm font-medium text-[--color-text]">
               Senha
             </label>
             <input
               id="login-password"
               type="password"
               autoComplete="current-password"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             {error && (
-              <p role="alert" className="mt-1 text-sm text-red-600">
+              <p role="alert" className="mt-1 text-sm text-[--color-destructive]">
                 {error}
               </p>
             )}
@@ -83,7 +83,7 @@ export function LoginForm() {
             <button
               type="submit"
               disabled={login.isPending}
-              className="w-full cursor-pointer rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full cursor-pointer rounded-md bg-[--color-accent] px-4 py-2 text-sm font-medium text-[--color-accent-fg] hover:bg-[--color-accent-hover] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {login.isPending ? 'Entrando...' : 'Entrar'}
             </button>
