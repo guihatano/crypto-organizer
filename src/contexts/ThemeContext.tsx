@@ -18,8 +18,12 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
  * the very first load follows the OS prefers-color-scheme (D-01).
  */
 function readStoredTheme(): Theme {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY)
-  return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY)
+    return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
+  } catch {
+    return 'system'
+  }
 }
 
 function prefersDark(): boolean {
