@@ -29,6 +29,10 @@
  * fade (UI-SPEC "No load-time transition flash").
  */
 :root {
+  /* Native form controls (date-picker icon + calendar popup, scrollbars,
+   * spin buttons, select menus) follow this. Without it they stay light in
+   * dark mode — e.g. <input type="date"> shows a black icon + light calendar. */
+  color-scheme: light;
   --color-bg: #ffffff;
   --color-surface: #f9fafb;
   --color-surface-hover: #f3f4f6;
@@ -48,6 +52,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --color-bg: #09090b;
   --color-surface: #18181b;
   --color-surface-hover: #27272a;
