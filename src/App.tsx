@@ -54,16 +54,16 @@ function App() {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-white">
-        <p className="text-sm text-gray-400">Carregando...</p>
+      <div className="flex min-h-svh items-center justify-center bg-[--color-bg]">
+        <p className="text-sm text-[--color-text-subtle]">Carregando...</p>
       </div>
     )
   }
 
   if (authError) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-white px-4">
-        <p className="text-sm text-red-500">
+      <div className="flex min-h-svh items-center justify-center bg-[--color-bg] px-4">
+        <p className="text-sm text-[--color-destructive]">
           Não foi possível verificar o login. Verifique se o servidor está rodando.
         </p>
       </div>
@@ -128,9 +128,9 @@ function AuthenticatedApp() {
   }
 
   return (
-    <div className="min-h-svh bg-white">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-4 sm:px-6">
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">Crypto Organizer</h1>
+    <div className="min-h-svh bg-[--color-bg]">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[--color-border] px-4 py-4 sm:px-6">
+        <h1 className="text-xl font-semibold text-[--color-text] sm:text-2xl">Crypto Organizer</h1>
         <div className="flex flex-wrap items-center gap-3">
           {hasTransactions && (
             <>
@@ -138,7 +138,7 @@ function AuthenticatedApp() {
               {view === 'dashboard' && (
                 <>
                   <CurrencyToggle value={currency} onChange={setCurrency} />
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <div className="flex items-center gap-1 text-xs text-[--color-text-muted]">
                     <span>
                       {pricesFetching ? 'Atualizando…' : formatUpdatedAgo(portfolio?.fetched_at ?? null)}
                     </span>
@@ -148,7 +148,7 @@ function AuthenticatedApp() {
                       disabled={pricesFetching}
                       aria-label="Atualizar cotações"
                       title="Atualizar cotações"
-                      className="cursor-pointer rounded-md p-1.5 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="cursor-pointer rounded-md p-1.5 text-[--color-text-muted] hover:bg-[--color-surface-hover] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <RefreshCw className={`h-4 w-4 ${pricesFetching ? 'animate-spin' : ''}`} />
                     </button>
@@ -160,7 +160,7 @@ function AuthenticatedApp() {
           <button
             type="button"
             onClick={openNewTransaction}
-            className="cursor-pointer rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+            className="cursor-pointer rounded-md bg-[--color-accent] px-4 py-2 text-sm font-medium text-[--color-accent-fg] hover:bg-[--color-accent-hover]"
           >
             Nova transação
           </button>
@@ -177,10 +177,10 @@ function AuthenticatedApp() {
           <IrReportPage />
         ) : (
           <>
-            {isLoading && <p className="text-sm text-gray-400">Carregando...</p>}
+            {isLoading && <p className="text-sm text-[--color-text-subtle]">Carregando...</p>}
 
             {isError && (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-[--color-destructive]">
                 Não foi possível carregar os dados. Verifique se a API está rodando.
               </p>
             )}
@@ -196,20 +196,20 @@ function AuthenticatedApp() {
 
                 {/* Positions region (D-09/D-10) */}
                 <section aria-labelledby="positions-heading">
-                  <h2 id="positions-heading" className="mb-3 text-lg font-medium text-gray-900">
+                  <h2 id="positions-heading" className="mb-3 text-lg font-medium text-[--color-text]">
                     Posições
                   </h2>
-                  <div className="overflow-x-auto rounded-lg border border-gray-200 p-4">
+                  <div className="overflow-x-auto rounded-lg border border-[--color-border] p-4">
                     <PositionTable positions={portfolio.positions} currency={currency} />
                   </div>
                 </section>
 
                 {/* History region (D-09) */}
                 <section aria-labelledby="history-heading">
-                  <h2 id="history-heading" className="mb-3 text-lg font-medium text-gray-900">
+                  <h2 id="history-heading" className="mb-3 text-lg font-medium text-[--color-text]">
                     Histórico de transações
                   </h2>
-                  <div className="overflow-x-auto rounded-lg border border-gray-200 p-4">
+                  <div className="overflow-x-auto rounded-lg border border-[--color-border] p-4">
                     <TransactionHistory
                       transactions={transactionsList ?? []}
                       onEdit={openEditTransaction}

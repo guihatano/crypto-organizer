@@ -179,28 +179,28 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
         role="dialog"
         aria-modal="true"
         aria-labelledby="transaction-form-title"
-        className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+        className="w-full max-w-md rounded-lg bg-[--color-surface] p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="transaction-form-title" className="mb-4 text-lg font-semibold text-gray-900">
+        <h2 id="transaction-form-title" className="mb-4 text-lg font-semibold text-[--color-text]">
           {isEditing ? 'Editar transação' : 'Nova transação'}
         </h2>
 
         {isEditing ? (
-          <p className="mb-4 inline-block rounded-md bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700">
+          <p className="mb-4 inline-block rounded-md bg-[--color-surface-hover] px-3 py-1 text-sm font-medium text-[--color-text]">
             {MODE_LABEL[mode]}
           </p>
         ) : (
           <div
             role="tablist"
             aria-label="Tipo de transação"
-            className="mb-4 inline-flex rounded-md border border-gray-300 text-sm"
+            className="mb-4 inline-flex rounded-md border border-[--color-border] text-sm"
           >
             <button
               type="button"
               role="tab"
               aria-selected={mode === 'buy'}
-              className={`cursor-pointer px-4 py-1.5 ${mode === 'buy' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+              className={`cursor-pointer px-4 py-1.5 ${mode === 'buy' ? 'bg-[--color-accent] text-[--color-accent-fg]' : 'text-[--color-text-muted]'}`}
               onClick={() => setMode('buy')}
             >
               Compra
@@ -209,7 +209,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               type="button"
               role="tab"
               aria-selected={mode === 'sell'}
-              className={`cursor-pointer px-4 py-1.5 ${mode === 'sell' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+              className={`cursor-pointer px-4 py-1.5 ${mode === 'sell' ? 'bg-[--color-accent] text-[--color-accent-fg]' : 'text-[--color-text-muted]'}`}
               onClick={() => setMode('sell')}
             >
               Venda
@@ -219,14 +219,14 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="tx-date" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="tx-date" className="mb-1 block text-sm font-medium text-[--color-text]">
               Data
             </label>
             <input
               ref={dateInputRef}
               id="tx-date"
               type="date"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
               value={date}
               max={todayIso()}
               onChange={(e) => setDate(e.target.value)}
@@ -235,7 +235,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
           </div>
 
           <div>
-            <label htmlFor="tx-coin" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="tx-coin" className="mb-1 block text-sm font-medium text-[--color-text]">
               Moeda
             </label>
             <CoinDropdown id="tx-coin" value={coinId} onChange={setCoinId} />
@@ -244,7 +244,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
           <div>
             <label
               htmlFor="tx-quantity"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className="mb-1 block text-sm font-medium text-[--color-text]"
             >
               Quantidade
             </label>
@@ -253,13 +253,13 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               type="text"
               inputMode="decimal"
               placeholder="0.00000000"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               required
             />
             {error && (
-              <p role="alert" className="mt-1 text-sm text-red-600">
+              <p role="alert" className="mt-1 text-sm text-[--color-destructive]">
                 {error}
               </p>
             )}
@@ -279,7 +279,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               <div>
                 <label
                   htmlFor="tx-fee"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  className="mb-1 block text-sm font-medium text-[--color-text]"
                 >
                   Taxa (R$)
                 </label>
@@ -288,7 +288,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
                   type="text"
                   inputMode="decimal"
                   placeholder="0,00"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+                  className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
                   value={feeBrl}
                   onChange={(e) => handleFeeChange(e.target.value)}
                 />
@@ -299,7 +299,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               <div>
                 <label
                   htmlFor="tx-received"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  className="mb-1 block text-sm font-medium text-[--color-text]"
                 >
                   Valor recebido (R$)
                 </label>
@@ -308,11 +308,11 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
                   type="text"
                   inputMode="decimal"
                   placeholder="0,00"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+                  className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
                   value={receivedBrl}
                   onChange={(e) => handleReceivedChange(e.target.value)}
                 />
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-[--color-text-subtle]">
                   Guardado para uma futura declaração de ganho de capital — não
                   afeta o preço médio nem o custo de aquisição.
                 </p>
@@ -320,7 +320,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
               <div>
                 <label
                   htmlFor="tx-fee"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  className="mb-1 block text-sm font-medium text-[--color-text]"
                 >
                   Taxa (R$)
                 </label>
@@ -329,7 +329,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
                   type="text"
                   inputMode="decimal"
                   placeholder="0,00"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+                  className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
                   value={feeBrl}
                   onChange={(e) => handleFeeChange(e.target.value)}
                 />
@@ -340,7 +340,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
           <div>
             <label
               htmlFor="tx-exchange"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className="mb-1 block text-sm font-medium text-[--color-text]"
             >
               Exchange (opcional)
             </label>
@@ -350,7 +350,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              className="cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              className="cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-[--color-text-muted] hover:bg-[--color-surface-hover]"
               onClick={onClose}
             >
               Cancelar
@@ -358,7 +358,7 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
             <button
               type="submit"
               disabled={isPending}
-              className="cursor-pointer rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="cursor-pointer rounded-md bg-[--color-accent] px-4 py-2 text-sm font-medium text-[--color-accent-fg] hover:bg-[--color-accent-hover] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPending ? 'Salvando...' : 'Salvar'}
             </button>

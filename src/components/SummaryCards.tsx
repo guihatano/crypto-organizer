@@ -28,8 +28,8 @@ function formatSignedPnl(pnlValue: string, pnlPct: string | null, formatMoney: M
 /** Green for gains, red for losses, neutral gray for exactly zero. */
 function pnlColorClass(pnlValue: string): string {
   const decimal = toDecimal(pnlValue)
-  if (decimal.isZero()) return 'text-gray-700'
-  return decimal.isNegative() ? 'text-red-600' : 'text-green-600'
+  if (decimal.isZero()) return 'text-[--color-text]'
+  return decimal.isNegative() ? 'text-[--color-loss]' : 'text-[--color-profit]'
 }
 
 /**
@@ -42,13 +42,13 @@ function UsdFxTooltip() {
       <button
         type="button"
         aria-label="Sobre o câmbio em USD"
-        className="cursor-help text-gray-400 hover:text-gray-600 focus:text-gray-600"
+        className="cursor-help text-[--color-text-subtle] hover:text-[--color-text-muted] focus:text-[--color-text-muted]"
       >
         <Info className="h-3.5 w-3.5" />
       </button>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 w-56 -translate-x-1/2 rounded-md bg-gray-900 px-2 py-1 text-xs font-normal text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 w-56 -translate-x-1/2 rounded-md bg-[--color-accent] px-2 py-1 text-xs font-normal text-[--color-accent-fg] opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
       >
         P&amp;L em USD usa o câmbio BRL/USD atual; o custo em BRL não muda
       </span>
@@ -71,24 +71,24 @@ export function SummaryCards({ data, currency }: SummaryCardsProps) {
   return (
     <div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 p-4">
-          <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <div className="rounded-lg border border-[--color-border] p-4">
+          <p className="text-xs font-medium tracking-wide text-[--color-text-muted] uppercase">
             Total investido
           </p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900">
+          <p className="mt-1 text-2xl font-semibold text-[--color-text]">
             {formatBRL(data.total_invested_brl)}
           </p>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
-          <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <div className="rounded-lg border border-[--color-border] p-4">
+          <p className="text-xs font-medium tracking-wide text-[--color-text-muted] uppercase">
             Valor de mercado
           </p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900">{formatMoney(marketValue)}</p>
+          <p className="mt-1 text-2xl font-semibold text-[--color-text]">{formatMoney(marketValue)}</p>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
-          <p className="flex items-center text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <div className="rounded-lg border border-[--color-border] p-4">
+          <p className="flex items-center text-xs font-medium tracking-wide text-[--color-text-muted] uppercase">
             Lucro/prejuízo não realizado
             {currency === 'USD' && <UsdFxTooltip />}
           </p>
@@ -99,7 +99,7 @@ export function SummaryCards({ data, currency }: SummaryCardsProps) {
       </div>
 
       {data.coins_without_price > 0 && (
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-[--color-text-muted]">
           {data.coins_without_price} moeda(s) sem cotação — total parcial
         </p>
       )}

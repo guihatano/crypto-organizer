@@ -51,7 +51,7 @@ export function TransactionHistory({ transactions, onEdit }: TransactionHistoryP
     <>
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+          <tr className="border-b border-[--color-border] text-xs uppercase tracking-wide text-[--color-text-muted]">
             <th scope="col" className="py-2 pr-4 font-medium">
               Data
             </th>
@@ -80,40 +80,40 @@ export function TransactionHistory({ transactions, onEdit }: TransactionHistoryP
         </thead>
         <tbody>
           {transactions.map((tx) => (
-            <tr key={tx.id} className="border-b border-gray-100 last:border-0">
-              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+            <tr key={tx.id} className="border-b border-[--color-border] last:border-0">
+              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
                 {formatDate(tx.date)}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
                 {TYPE_LABEL[tx.type]}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 font-medium text-gray-900">
+              <td className="whitespace-nowrap py-2 pr-4 font-medium text-[--color-text]">
                 {tx.coin_symbol}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
                 {formatQuantity(tx.quantity)}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
                 {formatBRL(tx.value_brl)}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
                 {formatBRL(tx.fee_brl)}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-gray-700">
+              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
                 {tx.exchange_name ?? '—'}
               </td>
               <td className="py-2 pr-4">
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900 hover:underline"
+                    className="cursor-pointer text-xs font-medium text-[--color-text-muted] hover:text-[--color-text] hover:underline"
                     onClick={() => onEdit(tx)}
                   >
                     Editar
                   </button>
                   <button
                     type="button"
-                    className="cursor-pointer text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
+                    className="cursor-pointer text-xs font-medium text-[--color-destructive] hover:text-[--color-destructive-hover] hover:underline"
                     onClick={() => handleRequestDelete(tx.id)}
                   >
                     Excluir

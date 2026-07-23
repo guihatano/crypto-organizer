@@ -120,17 +120,17 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
 
   return (
     <div>
-      <div className="mb-2 inline-flex rounded-md border border-gray-300 text-xs">
+      <div className="mb-2 inline-flex rounded-md border border-[--color-border] text-xs">
         <button
           type="button"
-          className={`cursor-pointer px-3 py-1 ${currency === 'BRL' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+          className={`cursor-pointer px-3 py-1 ${currency === 'BRL' ? 'bg-[--color-accent] text-[--color-accent-fg]' : 'text-[--color-text-muted]'}`}
           onClick={() => setCurrency('BRL')}
         >
           BRL
         </button>
         <button
           type="button"
-          className={`cursor-pointer px-3 py-1 ${currency === 'USDT' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}
+          className={`cursor-pointer px-3 py-1 ${currency === 'USDT' ? 'bg-[--color-accent] text-[--color-accent-fg]' : 'text-[--color-text-muted]'}`}
           onClick={() => setCurrency('USDT')}
         >
           USDT
@@ -139,7 +139,7 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
 
       {currency === 'USDT' && (
         <div className="mb-2 space-y-1">
-          <label htmlFor={`${id}-usdt`} className="block text-xs font-medium text-gray-500">
+          <label htmlFor={`${id}-usdt`} className="block text-xs font-medium text-[--color-text-muted]">
             Valor em USDT
           </label>
           <input
@@ -147,11 +147,11 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
             type="text"
             inputMode="decimal"
             placeholder="0,00"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+            className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
             value={usdtAmount}
             onChange={(e) => setUsdtAmount(e.target.value)}
           />
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-[--color-text-subtle]">
             {rateLoading
               ? 'Buscando cotação...'
               : rateData
@@ -163,7 +163,7 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
         </div>
       )}
 
-      <label htmlFor={id} className="mb-1 block text-xs font-medium text-gray-500">
+      <label htmlFor={id} className="mb-1 block text-xs font-medium text-[--color-text-muted]">
         {currency === 'USDT'
           ? 'Valor em BRL (calculado — edite se necessário)'
           : 'Valor total (R$)'}
@@ -173,7 +173,7 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
         type="text"
         inputMode="decimal"
         placeholder="0,00"
-        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+        className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
         value={brlDisplay}
         onChange={(e) => handleTypedInput(e.target.value)}
         required

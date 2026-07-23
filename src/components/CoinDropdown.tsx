@@ -74,7 +74,7 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
         aria-expanded={open}
         aria-controls={`${id}-listbox`}
         autoComplete="off"
-        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+        className="w-full rounded-md border border-[--color-border] px-3 py-2 text-sm focus:border-[--color-text-subtle] focus:outline-none"
         placeholder={isLoading ? 'Carregando...' : 'Buscar moeda (ex: BTC)'}
         value={open ? query : (selected ? `${selected.symbol} — ${selected.name}` : '')}
         onFocus={() => {
@@ -88,10 +88,10 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
         <div
           id={`${id}-listbox`}
           role="listbox"
-          className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg"
+          className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-[--color-border] bg-[--color-surface] shadow-lg"
         >
           {filtered.length === 0 && !addingNew && (
-            <p className="px-3 py-2 text-sm text-gray-400">Nenhuma moeda encontrada.</p>
+            <p className="px-3 py-2 text-sm text-[--color-text-subtle]">Nenhuma moeda encontrada.</p>
           )}
           <ul>
             {filtered.map((coin) => (
@@ -100,7 +100,7 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
                   type="button"
                   role="option"
                   aria-selected={coin.id === value}
-                  className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-gray-100"
+                  className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-[--color-surface-hover]"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     onChange(coin.id)
@@ -109,17 +109,17 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
                   }}
                 >
                   <span className="font-medium">{coin.symbol}</span>{' '}
-                  <span className="text-gray-500">{coin.name}</span>
+                  <span className="text-[--color-text-muted]">{coin.name}</span>
                 </button>
               </li>
             ))}
           </ul>
 
-          <div className="border-t border-gray-200 p-2">
+          <div className="border-t border-[--color-border] p-2">
             {!addingNew ? (
               <button
                 type="button"
-                className="w-full cursor-pointer rounded-md px-2 py-1.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100"
+                className="w-full cursor-pointer rounded-md px-2 py-1.5 text-left text-sm font-medium text-[--color-text] hover:bg-[--color-surface-hover]"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setAddingNew(true)}
               >
@@ -130,29 +130,29 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
                 <input
                   type="text"
                   placeholder="Símbolo (ex: ADA)"
-                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="w-full rounded-md border border-[--color-border] px-2 py-1 text-sm"
                   value={newSymbol}
                   onChange={(e) => setNewSymbol(e.target.value)}
                 />
                 <input
                   type="text"
                   placeholder="Nome (ex: Cardano)"
-                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="w-full rounded-md border border-[--color-border] px-2 py-1 text-sm"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                 />
                 <input
                   type="text"
                   placeholder="CoinGecko ID (ex: cardano)"
-                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="w-full rounded-md border border-[--color-border] px-2 py-1 text-sm"
                   value={newCoingeckoId}
                   onChange={(e) => setNewCoingeckoId(e.target.value)}
                 />
-                {addError && <p className="text-xs text-red-600">{addError}</p>}
+                {addError && <p className="text-xs text-[--color-destructive]">{addError}</p>}
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
-                    className="cursor-pointer rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                    className="cursor-pointer rounded-md px-2 py-1 text-xs text-[--color-text-muted] hover:bg-[--color-surface-hover]"
                     onClick={resetAddForm}
                   >
                     Cancelar
@@ -160,7 +160,7 @@ export function CoinDropdown({ id, value, onChange }: CoinDropdownProps) {
                   <button
                     type="button"
                     disabled={createCoin.isPending}
-                    className="cursor-pointer rounded-md bg-gray-900 px-2 py-1 text-xs text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="cursor-pointer rounded-md bg-[--color-accent] px-2 py-1 text-xs text-[--color-accent-fg] hover:bg-[--color-accent-hover] disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={handleCreateCoin}
                   >
                     {createCoin.isPending ? 'Salvando...' : 'Salvar'}
