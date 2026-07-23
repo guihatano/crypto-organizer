@@ -65,3 +65,26 @@
   --color-warning: #fbbf24;
   --color-warning-bg: #451a03;
 }
+
+@layer base {
+  /*
+   * Base text/background so EVERY element inherits the theme color. Without
+   * this, form controls (Tailwind preflight sets `color: inherit` on them)
+   * fall back to the UA default (black): in dark mode both typed text and the
+   * v4 default `::placeholder { color: color-mix(currentcolor 50%) }` render
+   * dark-on-dark and unreadable (DARK-03). No transition here (anti-FOUC).
+   */
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
+  /*
+   * Placeholders: explicit muted token instead of the v4 default 50% mix of
+   * currentColor, so they stay legible in both themes. `opacity: 1` overrides
+   * Firefox's default placeholder dimming.
+   */
+  ::placeholder {
+    color: var(--color-text-subtle);
+    opacity: 1;
+  }
+}
