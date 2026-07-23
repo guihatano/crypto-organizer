@@ -4,6 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Crypto Organizer</title>
+    <script>
+      // Anti-FOUC bootstrap (DARK-02, D-01/D-02/D-06, T-05-01/T-05-02):
+      // synchronous, runs before main.tsx mounts React, so the correct
+      // theme is applied before first paint. Reads ONLY the same
+      // localStorage key ('theme') the ThemeProvider writes, validates
+      // it against the fixed set, and falls back to
+      // prefers-color-scheme only when nothing valid is stored. Uses
+      // classList with a fixed class name — no dynamic code execution,
+      // no raw HTML injection, and the stored string is never used
+      // directly as a class name.
+      ;(function () {
+        try {
+          var stored = window.localStorage.getItem('theme')
+          var isDark =
+            stored === 'dark' ||
+            (stored !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.toggle('dark', isDark)
+        } catch (e) {
+          // localStorage unavailable (private mode/quota) — fail silent,
+          // leave default (light) theme; ThemeProvider still works.
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
