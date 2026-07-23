@@ -40,10 +40,10 @@ function ExchangeCnpjRow({ exchange }: { exchange: Exchange }) {
 
   return (
     <li className="flex flex-wrap items-start justify-between gap-3 py-3">
-      <span className="pt-6 text-sm text-[--color-text]">{exchange.name}</span>
+      <span className="pt-6 text-sm text-(--color-text)">{exchange.name}</span>
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
-          <label htmlFor={inputId} className="text-xs font-medium text-[--color-text-muted]">
+          <label htmlFor={inputId} className="text-xs font-medium text-(--color-text-muted)">
             CNPJ (opcional)
           </label>
           <input
@@ -52,7 +52,7 @@ function ExchangeCnpjRow({ exchange }: { exchange: Exchange }) {
             value={value}
             placeholder="00.000.000/0000-00"
             onChange={(e) => setValue(e.target.value)}
-            className="rounded-md border border-[--color-border] px-3 py-2 text-sm"
+            className="rounded-md border border-(--color-border) px-3 py-2 text-sm"
           />
         </div>
         {dirty && (
@@ -60,16 +60,16 @@ function ExchangeCnpjRow({ exchange }: { exchange: Exchange }) {
             type="button"
             disabled={mutation.isPending}
             onClick={handleSave}
-            className="cursor-pointer rounded-md border border-[--color-border] px-2 py-1 text-xs text-[--color-text] hover:bg-[--color-surface-hover] disabled:cursor-not-allowed disabled:opacity-50"
+            className="cursor-pointer rounded-md border border-(--color-border) px-2 py-1 text-xs text-(--color-text) hover:bg-(--color-surface-hover) disabled:cursor-not-allowed disabled:opacity-50"
           >
             {mutation.isPending ? 'Salvando...' : 'Salvar'}
           </button>
         )}
-        <span aria-live="polite" className="text-xs text-[--color-profit]">
+        <span aria-live="polite" className="text-xs text-(--color-profit)">
           {saved ? 'Salvo' : ''}
         </span>
       </div>
-      {mutation.isError && <p className="w-full text-xs text-[--color-destructive]">{saveErrorMessage(mutation.error)}</p>}
+      {mutation.isError && <p className="w-full text-xs text-(--color-destructive)">{saveErrorMessage(mutation.error)}</p>}
     </li>
   )
 }
@@ -100,12 +100,12 @@ function CoinGrupo08Row({ coin }: { coin: Coin }) {
 
   return (
     <li className="flex flex-wrap items-start justify-between gap-3 py-3">
-      <span className="pt-6 text-sm text-[--color-text]">
-        {coin.symbol} <span className="text-[--color-text-muted]">{coin.name}</span>
+      <span className="pt-6 text-sm text-(--color-text)">
+        {coin.symbol} <span className="text-(--color-text-muted)">{coin.name}</span>
       </span>
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
-          <label htmlFor={inputId} className="text-xs font-medium text-[--color-text-muted]">
+          <label htmlFor={inputId} className="text-xs font-medium text-(--color-text-muted)">
             Sub-código Grupo 08
           </label>
           <input
@@ -114,7 +114,7 @@ function CoinGrupo08Row({ coin }: { coin: Coin }) {
             value={value}
             placeholder="ex: 01"
             onChange={(e) => setValue(e.target.value)}
-            className="w-24 rounded-md border border-[--color-border] px-3 py-2 text-sm"
+            className="w-24 rounded-md border border-(--color-border) px-3 py-2 text-sm"
           />
         </div>
         {dirty && (
@@ -122,16 +122,16 @@ function CoinGrupo08Row({ coin }: { coin: Coin }) {
             type="button"
             disabled={mutation.isPending}
             onClick={handleSave}
-            className="cursor-pointer rounded-md border border-[--color-border] px-2 py-1 text-xs text-[--color-text] hover:bg-[--color-surface-hover] disabled:cursor-not-allowed disabled:opacity-50"
+            className="cursor-pointer rounded-md border border-(--color-border) px-2 py-1 text-xs text-(--color-text) hover:bg-(--color-surface-hover) disabled:cursor-not-allowed disabled:opacity-50"
           >
             {mutation.isPending ? 'Salvando...' : 'Salvar'}
           </button>
         )}
-        <span aria-live="polite" className="text-xs text-[--color-profit]">
+        <span aria-live="polite" className="text-xs text-(--color-profit)">
           {saved ? 'Salvo' : ''}
         </span>
       </div>
-      {mutation.isError && <p className="w-full text-xs text-[--color-destructive]">{saveErrorMessage(mutation.error)}</p>}
+      {mutation.isError && <p className="w-full text-xs text-(--color-destructive)">{saveErrorMessage(mutation.error)}</p>}
     </li>
   )
 }
@@ -150,20 +150,20 @@ export function CadastrosPanel() {
   const { data: coins, isLoading: coinsLoading } = useCoins()
 
   return (
-    <details className="rounded-lg border border-[--color-border] p-4" open>
-      <summary className="cursor-pointer text-base font-medium text-[--color-text]">
+    <details className="rounded-lg border border-(--color-border) p-4" open>
+      <summary className="cursor-pointer text-base font-medium text-(--color-text)">
         Cadastros para declaração
       </summary>
-      <p className="mt-1 text-sm text-[--color-text-muted]">
+      <p className="mt-1 text-sm text-(--color-text-muted)">
         Preencha o CNPJ das exchanges e o sub-código Grupo 08 de cada moeda para completar a Discriminação.
       </p>
 
       <div className="mt-4 space-y-6">
         <div>
-          <h3 className="text-sm font-medium text-[--color-text]">Exchanges</h3>
-          {exchangesLoading && <p className="mt-2 text-sm text-[--color-text-subtle]">Carregando...</p>}
+          <h3 className="text-sm font-medium text-(--color-text)">Exchanges</h3>
+          {exchangesLoading && <p className="mt-2 text-sm text-(--color-text-subtle)">Carregando...</p>}
           {!exchangesLoading && (
-            <ul className="mt-1 divide-y divide-[--color-border]">
+            <ul className="mt-1 divide-y divide-(--color-border)">
               {exchanges?.map((exchange) => (
                 <ExchangeCnpjRow key={exchange.id} exchange={exchange} />
               ))}
@@ -172,10 +172,10 @@ export function CadastrosPanel() {
         </div>
 
         <div>
-          <h3 className="text-sm font-medium text-[--color-text]">Moedas</h3>
-          {coinsLoading && <p className="mt-2 text-sm text-[--color-text-subtle]">Carregando...</p>}
+          <h3 className="text-sm font-medium text-(--color-text)">Moedas</h3>
+          {coinsLoading && <p className="mt-2 text-sm text-(--color-text-subtle)">Carregando...</p>}
           {!coinsLoading && (
-            <ul className="mt-1 divide-y divide-[--color-border]">
+            <ul className="mt-1 divide-y divide-(--color-border)">
               {coins?.map((coin) => (
                 <CoinGrupo08Row key={coin.id} coin={coin} />
               ))}

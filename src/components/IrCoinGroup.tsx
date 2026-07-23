@@ -14,7 +14,7 @@ interface IrCoinGroupProps {
  */
 function ThresholdBadge() {
   return (
-    <span className="w-fit whitespace-nowrap rounded bg-[--color-warning-bg] px-1 py-0.5 text-xs text-[--color-warning]">
+    <span className="w-fit whitespace-nowrap rounded bg-(--color-warning-bg) px-1 py-0.5 text-xs text-(--color-warning)">
       Declaração obrigatória
     </span>
   )
@@ -29,21 +29,21 @@ function ThresholdBadge() {
  */
 export function IrCoinGroup({ coin }: IrCoinGroupProps) {
   return (
-    <div className="rounded-lg border border-[--color-border] p-4">
+    <div className="rounded-lg border border-(--color-border) p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-[--color-text]">{coin.symbol}</span>
-          <span className="text-[--color-text-muted]">{coin.name}</span>
+          <span className="font-medium text-(--color-text)">{coin.symbol}</span>
+          <span className="text-(--color-text-muted)">{coin.name}</span>
           {coin.meets_threshold && <ThresholdBadge />}
           {coin.grupo08_subcodigo !== null && (
-            <span className="text-xs font-medium text-[--color-text-muted]">
+            <span className="text-xs font-medium text-(--color-text-muted)">
               Sub-código Grupo 08: {coin.grupo08_subcodigo}
             </span>
           )}
         </div>
         <div className="text-right">
-          <span className="text-xs font-medium text-[--color-text-muted]">Custo total</span>
-          <p className="text-base font-medium tabular-nums text-[--color-text]">{formatBRL(coin.custo_total)}</p>
+          <span className="text-xs font-medium text-(--color-text-muted)">Custo total</span>
+          <p className="text-base font-medium tabular-nums text-(--color-text)">{formatBRL(coin.custo_total)}</p>
         </div>
       </div>
 

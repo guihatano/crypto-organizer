@@ -18,7 +18,7 @@ export function IrExchangeLineTable({ lines }: IrExchangeLineTableProps) {
   return (
     <table className="w-full pl-4 text-left text-sm">
       <thead>
-        <tr className="border-b border-[--color-border] text-xs uppercase tracking-wide text-[--color-text-muted]">
+        <tr className="border-b border-(--color-border) text-xs uppercase tracking-wide text-(--color-text-muted)">
           <th scope="col" className="py-2 pr-4 font-medium">
             Exchange
           </th>
@@ -33,19 +33,19 @@ export function IrExchangeLineTable({ lines }: IrExchangeLineTableProps) {
       </thead>
       <tbody>
         {lines.map((line) => (
-          <tr key={line.exchange_id ?? 'none'} className="border-b border-[--color-border] last:border-0 align-top">
+          <tr key={line.exchange_id ?? 'none'} className="border-b border-(--color-border) last:border-0 align-top">
             <td className="py-2 pr-4">
               {line.exchange_name === null ? (
-                <span className="text-[--color-text-muted] italic">Exchange não informada</span>
+                <span className="text-(--color-text-muted) italic">Exchange não informada</span>
               ) : (
-                <span className="text-[--color-text]">{line.exchange_name}</span>
+                <span className="text-(--color-text)">{line.exchange_name}</span>
               )}
-              <p className="mt-1 text-xs text-[--color-text-muted]">{line.discriminacao_text}</p>
+              <p className="mt-1 text-xs text-(--color-text-muted)">{line.discriminacao_text}</p>
             </td>
-            <td className="py-2 pr-4 text-right tabular-nums text-[--color-text]">
+            <td className="py-2 pr-4 text-right tabular-nums text-(--color-text)">
               {formatQuantity(line.quantity)}
             </td>
-            <td className="py-2 pr-4 text-right tabular-nums text-[--color-text]">
+            <td className="py-2 pr-4 text-right tabular-nums text-(--color-text)">
               {formatBRL(line.custo_de_aquisicao)}
             </td>
             <td className="py-2 pr-4">

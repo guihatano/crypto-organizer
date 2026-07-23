@@ -30,8 +30,8 @@ function formatSignedPnl(pnlValue: string, pnlPct: string | null, formatMoney: M
 /** Green for gains, red for losses, neutral gray for exactly zero. */
 function pnlColorClass(pnlValue: string): string {
   const decimal = toDecimal(pnlValue)
-  if (decimal.isZero()) return 'text-[--color-text]'
-  return decimal.isNegative() ? 'text-[--color-loss]' : 'text-[--color-profit]'
+  if (decimal.isZero()) return 'text-(--color-text)'
+  return decimal.isNegative() ? 'text-(--color-loss)' : 'text-(--color-profit)'
 }
 
 /**
@@ -52,7 +52,7 @@ function formatStaleAge(fetchedAt: string | null): string {
 function StaleBadge({ fetchedAt }: { fetchedAt: string | null }) {
   const age = formatStaleAge(fetchedAt)
   return (
-    <span className="mt-0.5 block w-fit whitespace-nowrap rounded bg-[--color-surface-hover] px-1 py-0.5 text-xs text-[--color-text-muted]">
+    <span className="mt-0.5 block w-fit whitespace-nowrap rounded bg-(--color-surface-hover) px-1 py-0.5 text-xs text-(--color-text-muted)">
       defasado{age && ` · de há ${age}`}
     </span>
   )
@@ -77,11 +77,11 @@ function MarketCell({
   fetchedAt: string | null
 }) {
   if (value === null) {
-    return <span className="text-[--color-text-subtle] italic">cotação indisponível</span>
+    return <span className="text-(--color-text-subtle) italic">cotação indisponível</span>
   }
   return (
     <span className="flex flex-col items-end">
-      <span className={stale ? 'text-[--color-text-subtle] italic' : undefined}>{formatMoney(value)}</span>
+      <span className={stale ? 'text-(--color-text-subtle) italic' : undefined}>{formatMoney(value)}</span>
       {stale && <StaleBadge fetchedAt={fetchedAt} />}
     </span>
   )
@@ -100,7 +100,7 @@ export function PositionTable({ positions, currency }: PositionTableProps) {
   return (
     <table className="w-full text-left text-sm">
       <thead>
-        <tr className="border-b border-[--color-border] text-xs uppercase tracking-wide text-[--color-text-muted]">
+        <tr className="border-b border-(--color-border) text-xs uppercase tracking-wide text-(--color-text-muted)">
           <th scope="col" className="py-2 pr-4 font-medium">
             Moeda
           </th>
@@ -131,20 +131,20 @@ export function PositionTable({ positions, currency }: PositionTableProps) {
           const pnl = currency === 'USD' ? position.pnl_usd : position.pnl_brl
 
           return (
-            <tr key={position.coin_id} className="border-b border-[--color-border] last:border-0">
-              <td className="whitespace-nowrap py-2 pr-4 font-medium text-[--color-text]">
+            <tr key={position.coin_id} className="border-b border-(--color-border) last:border-0">
+              <td className="whitespace-nowrap py-2 pr-4 font-medium text-(--color-text)">
                 {position.symbol}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
+              <td className="whitespace-nowrap py-2 pr-4 text-(--color-text)">
                 {formatQuantity(position.quantity)}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
+              <td className="whitespace-nowrap py-2 pr-4 text-(--color-text)">
                 {formatBRL(position.preco_medio)}
               </td>
-              <td className="whitespace-nowrap py-2 pr-4 text-[--color-text]">
+              <td className="whitespace-nowrap py-2 pr-4 text-(--color-text)">
                 {formatBRL(position.custo_total)}
               </td>
-              <td className="py-2 pr-4 text-right tabular-nums text-[--color-text]">
+              <td className="py-2 pr-4 text-right tabular-nums text-(--color-text)">
                 <MarketCell
                   value={price}
                   formatMoney={formatMoney}
@@ -152,7 +152,7 @@ export function PositionTable({ positions, currency }: PositionTableProps) {
                   fetchedAt={position.fetched_at}
                 />
               </td>
-              <td className="py-2 pr-4 text-right tabular-nums text-[--color-text]">
+              <td className="py-2 pr-4 text-right tabular-nums text-(--color-text)">
                 <MarketCell
                   value={marketValue}
                   formatMoney={formatMoney}
@@ -162,12 +162,12 @@ export function PositionTable({ positions, currency }: PositionTableProps) {
               </td>
               <td className="py-2 pr-4 text-right tabular-nums">
                 {pnl === null ? (
-                  <span className="text-[--color-text-subtle] italic">
+                  <span className="text-(--color-text-subtle) italic">
                     {marketValue === null ? 'cotação indisponível' : 'custo zero'}
                   </span>
                 ) : (
                   <span className="flex flex-col items-end">
-                    <span className={position.stale ? 'text-[--color-text-subtle] italic' : pnlColorClass(pnl)}>
+                    <span className={position.stale ? 'text-(--color-text-subtle) italic' : pnlColorClass(pnl)}>
                       {formatSignedPnl(pnl, position.pnl_pct, formatMoney)}
                     </span>
                     {position.stale && <StaleBadge fetchedAt={position.fetched_at} />}

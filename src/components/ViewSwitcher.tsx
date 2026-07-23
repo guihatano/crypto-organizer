@@ -19,7 +19,7 @@ const SEGMENTS: { value: AppView; label: string }[] = [
  */
 export function ViewSwitcher({ value, onChange }: ViewSwitcherProps) {
   return (
-    <div role="group" aria-label="Visualização" className="flex overflow-hidden rounded-md border border-[--color-border]">
+    <div role="group" aria-label="Visualização" className="flex overflow-hidden rounded-md border border-(--color-border)">
       {SEGMENTS.map((segment) => {
         const active = segment.value === value
         return (
@@ -29,7 +29,7 @@ export function ViewSwitcher({ value, onChange }: ViewSwitcherProps) {
             aria-pressed={active}
             onClick={() => onChange(segment.value)}
             className={`cursor-pointer px-3 py-1.5 text-sm font-medium ${
-              active ? 'bg-[--color-accent] text-[--color-accent-fg]' : 'text-[--color-text-muted] hover:bg-[--color-surface-hover]'
+              active ? 'bg-(--color-accent) text-(--color-accent-fg)' : 'text-(--color-text-muted) hover:bg-(--color-surface-hover)'
             }`}
           >
             {segment.label}

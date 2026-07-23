@@ -53,12 +53,12 @@ export function CopyDiscriminacaoButton({ text }: CopyDiscriminacaoButtonProps) 
     <button
       type="button"
       onClick={handleCopy}
-      className="flex cursor-pointer items-center gap-1 rounded-md border border-[--color-border] px-2 py-1 text-sm text-[--color-text] hover:bg-[--color-surface-hover]"
+      className="flex cursor-pointer items-center gap-1 rounded-md border border-(--color-border) px-2 py-1 text-sm text-(--color-text) hover:bg-(--color-surface-hover)"
     >
       {status === 'copied' ? (
-        <Check className="h-4 w-4 text-[--color-profit]" />
+        <Check className="h-4 w-4 text-(--color-profit)" />
       ) : status === 'failed' ? (
-        <AlertTriangle className="h-4 w-4 text-[--color-destructive]" />
+        <AlertTriangle className="h-4 w-4 text-(--color-destructive)" />
       ) : (
         <Copy className="h-4 w-4" />
       )}

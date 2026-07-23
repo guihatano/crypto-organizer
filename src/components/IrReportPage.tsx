@@ -41,24 +41,24 @@ export function IrReportPage() {
   return (
     <div className="space-y-10">
       <section aria-labelledby="ir-report-heading" className="space-y-6">
-        <h2 id="ir-report-heading" className="text-lg font-medium text-[--color-text]">
+        <h2 id="ir-report-heading" className="text-lg font-medium text-(--color-text)">
           Relatório IR
         </h2>
 
-        {yearsLoading && <p className="text-sm text-[--color-text-subtle]">Carregando...</p>}
+        {yearsLoading && <p className="text-sm text-(--color-text-subtle)">Carregando...</p>}
 
         {!yearsLoading && yearsError && (
-          <p className="text-sm text-[--color-destructive]">
+          <p className="text-sm text-(--color-destructive)">
             Não foi possível carregar o relatório de IR. Verifique se a API está rodando.
           </p>
         )}
 
         {!yearsLoading && !yearsError && noYearAvailable && (
-          <div className="rounded-lg border border-[--color-border] p-4">
-            <p className="text-sm font-medium text-[--color-text]">
+          <div className="rounded-lg border border-(--color-border) p-4">
+            <p className="text-sm font-medium text-(--color-text)">
               Nenhum ano disponível para declarar ainda.
             </p>
-            <p className="mt-1 text-sm text-[--color-text-muted]">
+            <p className="mt-1 text-sm text-(--color-text-muted)">
               Registre suas transações de compra e venda para gerar o relatório de Bens e Direitos.
             </p>
           </div>
@@ -67,14 +67,14 @@ export function IrReportPage() {
         {!yearsLoading && !yearsError && !noYearAvailable && (
           <>
             <div className="flex flex-col gap-1">
-              <label htmlFor="ir-report-year" className="text-xs font-medium text-[--color-text-muted]">
+              <label htmlFor="ir-report-year" className="text-xs font-medium text-(--color-text-muted)">
                 Ano-calendário
               </label>
               <select
                 id="ir-report-year"
                 value={selectedYear ?? ''}
                 onChange={(event) => setSelectedYear(Number(event.target.value))}
-                className="w-fit rounded-md border border-[--color-border] px-3 py-2 text-sm"
+                className="w-fit rounded-md border border-(--color-border) px-3 py-2 text-sm"
               >
                 {selectedYear === null && (
                   <option value="" disabled>
@@ -89,20 +89,20 @@ export function IrReportPage() {
               </select>
             </div>
 
-            {reportLoading && <p className="text-sm text-[--color-text-subtle]">Carregando...</p>}
+            {reportLoading && <p className="text-sm text-(--color-text-subtle)">Carregando...</p>}
 
             {reportError && (
-              <p className="text-sm text-[--color-destructive]">
+              <p className="text-sm text-(--color-destructive)">
                 Não foi possível carregar o relatório de IR. Verifique se a API está rodando.
               </p>
             )}
 
             {!reportLoading && !reportError && report && report.coins.length === 0 && (
-              <div className="rounded-lg border border-[--color-border] p-4">
-                <p className="text-sm font-medium text-[--color-text]">
+              <div className="rounded-lg border border-(--color-border) p-4">
+                <p className="text-sm font-medium text-(--color-text)">
                   Nenhuma posição em 31/12 de {report.year}.
                 </p>
-                <p className="mt-1 text-sm text-[--color-text-muted]">
+                <p className="mt-1 text-sm text-(--color-text-muted)">
                   Você não tinha nenhuma criptomoeda em carteira nessa data — não há nada para
                   declarar em Bens e Direitos nesse ano.
                 </p>

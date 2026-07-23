@@ -34,7 +34,7 @@ export function ModeToggle() {
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Tema: ${current.label}`}
-        className="cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium text-[--color-text-muted] hover:bg-[--color-surface-hover]"
+        className="cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium text-(--color-text-muted) hover:bg-(--color-surface-hover)"
       >
         <span className="flex items-center gap-1.5">
           <CurrentIcon className="h-4 w-4" />
@@ -44,7 +44,7 @@ export function ModeToggle() {
       {open && (
         <div
           role="listbox"
-          className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-md border border-[--color-border] bg-[--color-surface] shadow-lg"
+          className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-md border border-(--color-border) bg-(--color-surface) shadow-lg"
         >
           {OPTIONS.map((option) => {
             const active = option.value === theme
@@ -62,8 +62,8 @@ export function ModeToggle() {
                 }}
                 className={`flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-left text-sm ${
                   active
-                    ? 'bg-[--color-accent] text-[--color-accent-fg]'
-                    : 'text-[--color-text-muted] hover:bg-[--color-surface-hover]'
+                    ? 'bg-(--color-accent) text-(--color-accent-fg)'
+                    : 'text-(--color-text-muted) hover:bg-(--color-surface-hover)'
                 }`}
               >
                 <OptionIcon className="h-4 w-4" />

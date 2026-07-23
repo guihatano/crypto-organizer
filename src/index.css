@@ -17,10 +17,12 @@
  * Values are taken verbatim from the LOCKED Semantic Token Table in
  * .planning/phases/05-dark-mode/05-UI-SPEC.md — do not re-derive.
  *
- * Consumed via arbitrary-value utilities (e.g. `bg-[--color-bg]`,
- * `text-[--color-text]`, `border-[--color-border]`) which read these CSS
- * custom properties directly, already reactive to `.dark` with no
- * `@theme` mapping required.
+ * Consumed via Tailwind v4 CSS-variable shorthand utilities (e.g.
+ * `bg-(--color-bg)`, `text-(--color-text)`, `border-(--color-border)`) which
+ * expand to `var(--color-*)` and read these custom properties directly,
+ * already reactive to `.dark` with no `@theme` mapping required.
+ * NOTE: v4 dropped the v3 `[--color-*]` bracket shorthand — that form emits
+ * an invalid bare `--color-*` value (no var()) and applies no color. Use `(--color-*)`.
  *
  * No transition on background-color/color is applied to html/body here —
  * that would turn the anti-FOUC script's instant swap into a visible
