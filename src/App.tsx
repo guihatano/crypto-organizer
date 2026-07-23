@@ -14,6 +14,7 @@ import { IrReportPage } from './components/IrReportPage.tsx'
 import { SetupForm } from './components/SetupForm.tsx'
 import { LoginForm } from './components/LoginForm.tsx'
 import { LogoutButton } from './components/LogoutButton.tsx'
+import { ModeToggle } from './components/ModeToggle.tsx'
 
 const CURRENCY_STORAGE_KEY = 'currency'
 
@@ -163,6 +164,7 @@ function AuthenticatedApp() {
           >
             Nova transação
           </button>
+          <ModeToggle />
           <LogoutButton />
         </div>
       </header>
