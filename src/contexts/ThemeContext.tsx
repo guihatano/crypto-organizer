@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 
 export type Theme = 'light' | 'dark' | 'system'
 
@@ -50,11 +50,17 @@ function applyEffectiveTheme(theme: Theme) {
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readStoredTheme)
+  const isFirstRender = useRef(true)
 
   // Persist only an explicit user selection (D-02) — fail-silent per
   // UI-SPEC/T-05-03 (private-mode/quota errors must not crash the app;
-  // the theme still applies for the session).
+  // the theme still applies for the session). Skip the initial mount so
+  // an untouched fallback (e.g. 'system') is never written to storage.
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     try {
       localStorage.setItem(THEME_STORAGE_KEY, theme)
     } catch {
