@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { Download, RefreshCw } from 'lucide-react'
 import type { TransactionListItem } from './api/client.ts'
 import { usePrices, useTransactionsList } from './hooks/useTransactions.ts'
 import { useAuthStatus } from './hooks/useAuth.ts'
@@ -206,9 +206,25 @@ function AuthenticatedApp() {
 
                 {/* History region (D-09) */}
                 <section aria-labelledby="history-heading">
-                  <h2 id="history-heading" className="mb-3 text-lg font-medium text-(--color-text)">
-                    Histórico de transações
-                  </h2>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <h2 id="history-heading" className="text-lg font-medium text-(--color-text)">
+                      Histórico de transações
+                    </h2>
+                    {/* D-10: export control lives inside the History toolbar.
+                        Plain same-origin cookie-authenticated <a download> —
+                        not fetch/blob, not apiClient (RESEARCH.md Export
+                        mechanics). Import trigger is added in 06-02. */}
+                    <a
+                      href="/api/backup/export.csv"
+                      download
+                      className="cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium text-(--color-text-muted) hover:bg-(--color-surface-hover) disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Download className="h-4 w-4" />
+                        Exportar CSV
+                      </span>
+                    </a>
+                  </div>
                   <div className="overflow-x-auto rounded-lg border border-(--color-border) p-4">
                     <TransactionHistory
                       transactions={transactionsList ?? []}
