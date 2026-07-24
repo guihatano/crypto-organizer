@@ -134,6 +134,48 @@ export function seedExchange(name: string): number {
 }
 
 /**
+ * Raw-SQL transaction insert (mirrors seedFixture's prepare/run style),
+ * shared across integration test files. Lets a test seed odd-precision
+ * TEXT values (e.g. '0.00314159', '1500.00', '0') and a specific
+ * origin/createdAt, bypassing POST /transactions/buy|sell's own
+ * chronological/ledger validation entirely — used by backup.integration's
+ * export/import fixtures, which need full control over the raw stored
+ * TEXT columns.
+ */
+export function seedTransaction(row: {
+  date: string
+  type: 'buy' | 'sell'
+  coinId: number
+  quantity: string
+  valueBrl: string
+  feeBrl: string
+  exchangeId?: number | null
+  origin?: string
+  createdAt?: string
+}): number {
+  const now = row.createdAt ?? new Date().toISOString()
+  const inserted = sqlite
+    .prepare(
+      `INSERT INTO transactions
+         (date, type, coin_id, quantity, value_brl, fee_brl, exchange_id, origin, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      row.date,
+      row.type,
+      row.coinId,
+      row.quantity,
+      row.valueBrl,
+      row.feeBrl,
+      row.exchangeId ?? null,
+      row.origin ?? 'manual',
+      now,
+      now,
+    )
+  return Number(inserted.lastInsertRowid)
+}
+
+/**
  * Directly writes a saved price-cache row (last_price_brl/usd + fetched_at)
  * for a coin, bypassing the prices route — used by tests that need a
  * pre-existing cached value (stale-fallback / cache-only scenarios, D-08).

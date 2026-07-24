@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { sqlite } from '../../db/client.ts'
-import { resetTestDb, seedExchange, seedFixture } from './testDb.ts'
+import { resetTestDb, seedExchange, seedFixture, seedTransaction } from './testDb.ts'
 import { seedAuthedSession } from './testAuth.ts'
 import app from '../index.ts'
 
@@ -232,5 +232,229 @@ describe('POST /api/backup/import', () => {
       errors: [{ line: 7, reason: expect.stringContaining('XPTO') }],
     })
     expect(countTransactions()).toBe(countBefore)
+  })
+
+  it('precision round-trip: odd-precision decimals survive export -> fresh DB -> import byte-identical (BACKUP-02)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+    seedTransaction({
+      date: '2026-01-01',
+      type: 'buy',
+      coinId,
+      quantity: '0.00314159',
+      valueBrl: '1500.00',
+      feeBrl: '0',
+      exchangeId,
+    })
+
+    const { text: exportedCsv } = await getExportCsv()
+
+    // "Fresh DB": reset everything, then reseed the coin/exchange (mirrors
+    // an app-level seed list surviving a wiped ledger) and a fresh session.
+    resetTestDb()
+    const { coinId: freshCoinId } = seedFixture()
+    const session = await seedAuthedSession()
+    cookieHeader = session.cookieHeader
+
+    const { status, body } = await postImport(exportedCsv)
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ imported: 1, duplicates_skipped: 0, new_exchanges: [] })
+
+    const row = sqlite
+      .prepare('SELECT quantity, value_brl, fee_brl FROM transactions WHERE coin_id = ?')
+      .get(freshCoinId) as { quantity: string; value_brl: string; fee_brl: string }
+    expect(row).toEqual({ quantity: '0.00314159', value_brl: '1500.00', fee_brl: '0' })
+  })
+
+  it('dedupes a row equal to an existing tx but formatted differently, "1500.00" vs "1500" (Pitfall 4)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+    seedTransaction({
+      date: '2026-01-01',
+      type: 'buy',
+      coinId,
+      quantity: '1',
+      valueBrl: '1500',
+      feeBrl: '0',
+      exchangeId,
+    })
+
+    const csv = `${EXPORT_HEADER}\n2026-01-01;compra;BTC;1;1500.00;0;Manual;manual\n`
+    const countBefore = countTransactions()
+    const { status, body } = await postImport(csv)
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ imported: 0, duplicates_skipped: 1, new_exchanges: [] })
+    expect(countTransactions()).toBe(countBefore)
+  })
+
+  it('dedupes a no-exchange row only against another no-exchange row (D-09)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+    seedTransaction({
+      date: '2026-01-01',
+      type: 'buy',
+      coinId,
+      quantity: '1',
+      valueBrl: '100',
+      feeBrl: '0',
+      exchangeId: null,
+    })
+    seedTransaction({
+      date: '2026-01-01',
+      type: 'buy',
+      coinId,
+      quantity: '1',
+      valueBrl: '100',
+      feeBrl: '0',
+      exchangeId,
+    })
+
+    const csv = `${EXPORT_HEADER}\n2026-01-01;compra;BTC;1;100;0;;manual\n`
+    const { status, body } = await postImport(csv)
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ imported: 0, duplicates_skipped: 1, new_exchanges: [] })
+  })
+
+  it('shuffle-order invariance: reordering CSV rows yields identical import counts (BACKUP-02)', async () => {
+    const rowsInOrder = [
+      '2026-01-01;compra;BTC;5;1000.00;0;;manual',
+      '2026-01-02;venda;BTC;2;500.00;0;;manual',
+      '2026-01-03;compra;BTC;1;200.00;0;;manual',
+    ]
+    const shuffled = [rowsInOrder[2], rowsInOrder[0], rowsInOrder[1]]
+    const csvOrdered = [EXPORT_HEADER, ...rowsInOrder].join('\n') + '\n'
+    const csvShuffled = [EXPORT_HEADER, ...shuffled].join('\n') + '\n'
+
+    seedFixture()
+    const { status: status1, body: body1 } = await postImport(csvOrdered)
+    expect(status1).toBe(200)
+
+    resetTestDb()
+    seedFixture()
+    const session = await seedAuthedSession()
+    cookieHeader = session.cookieHeader
+
+    const { status: status2, body: body2 } = await postImport(csvShuffled)
+    expect(status2).toBe(200)
+    expect(body2).toEqual(body1)
+  })
+
+  it('rejects the whole batch when it would drive the position negative (BACKUP-04, T-06-06)', async () => {
+    const { coinId, exchangeId } = seedFixture()
+    seedTransaction({
+      date: '2026-01-10',
+      type: 'buy',
+      coinId,
+      quantity: '1',
+      valueBrl: '1000',
+      feeBrl: '0',
+      exchangeId,
+    })
+
+    const csv = `${EXPORT_HEADER}\n2026-01-05;venda;BTC;2;1000.00;0;Manual;manual\n`
+    const countBefore = countTransactions()
+    const { status, body } = await postImport(csv)
+
+    expect(status).toBe(400)
+    expect(body).toMatchObject({
+      errors: [{ line: 2, reason: expect.stringContaining('negativa') }],
+    })
+    expect(countTransactions()).toBe(countBefore)
+  })
+
+  it('auto-creates an unknown exchange and reports it in new_exchanges (D-01/D-02)', async () => {
+    seedFixture()
+    const csv = `${EXPORT_HEADER}\n2026-01-01;compra;BTC;1;100.00;0;NomeNovo;manual\n`
+
+    const { status, body } = await postImport(csv)
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ imported: 1, duplicates_skipped: 0, new_exchanges: ['NomeNovo'] })
+
+    const exchangeRow = sqlite.prepare('SELECT id FROM exchanges WHERE name = ?').get('NomeNovo')
+    expect(exchangeRow).toBeTruthy()
+  })
+
+  it('rejects an unknown coin symbol without auto-creating it (D-01)', async () => {
+    seedFixture()
+    const csv = `${EXPORT_HEADER}\n2026-01-01;compra;XPTO;1;100.00;0;Manual;manual\n`
+
+    const { status, body } = await postImport(csv)
+
+    expect(status).toBe(400)
+    expect(body).toMatchObject({ errors: [{ line: 2, reason: expect.stringContaining('XPTO') }] })
+
+    const coinRow = sqlite.prepare('SELECT id FROM coins WHERE symbol = ?').get('XPTO')
+    expect(coinRow).toBeUndefined()
+    expect(countTransactions()).toBe(0)
+  })
+
+  it('forces origin to csv-import regardless of the CSV origem cell (BACKUP-05)', async () => {
+    seedFixture()
+    const csv = `${EXPORT_HEADER}\n2026-01-01;compra;BTC;1;100.00;0;Manual;manual\n`
+
+    const { status } = await postImport(csv)
+    expect(status).toBe(200)
+
+    const row = sqlite.prepare('SELECT origin FROM transactions LIMIT 1').get() as {
+      origin: string
+    }
+    expect(row.origin).toBe('csv-import')
+  })
+
+  it('returns a single malformed-file message with no per-row list on unparseable CSV (T-06-04)', async () => {
+    seedFixture()
+    // Ragged row (only 6 of 8 columns) with relax_column_count:false -> throws.
+    const malformed = `${EXPORT_HEADER}\n2026-01-01;compra;BTC;1;100.00;0\n`
+
+    const { status, body } = await postImport(malformed)
+
+    expect(status).toBe(400)
+    expect(body).toMatchObject({ error: expect.any(String) })
+    expect((body as { errors?: unknown }).errors).toBeUndefined()
+    expect(countTransactions()).toBe(0)
+  })
+
+  it('returns imported:0 duplicates:0 and writes nothing for a header-only CSV', async () => {
+    seedFixture()
+    const { status, body } = await postImport(`${EXPORT_HEADER}\n`)
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ imported: 0, duplicates_skipped: 0, new_exchanges: [] })
+    expect(countTransactions()).toBe(0)
+  })
+
+  it('round-trips a formula-escaped exchange name with no leftover apostrophe (Pitfall 1)', async () => {
+    const { coinId } = seedFixture()
+    const suspiciousExchangeId = seedExchange('-Test')
+    seedTransaction({
+      date: '2026-01-01',
+      type: 'buy',
+      coinId,
+      quantity: '1',
+      valueBrl: '100.00',
+      feeBrl: '0',
+      exchangeId: suspiciousExchangeId,
+    })
+
+    const { text: exportedCsv } = await getExportCsv()
+    expect(exportedCsv).toContain("'-Test")
+
+    resetTestDb()
+    seedFixture() // recreates BTC so 'moeda' resolves; the '-Test exchange does not exist yet
+    const session = await seedAuthedSession()
+    cookieHeader = session.cookieHeader
+
+    const { status, body } = await postImport(exportedCsv)
+
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ new_exchanges: ['-Test'] })
+
+    const recreated = sqlite.prepare('SELECT name FROM exchanges WHERE name = ?').get('-Test')
+    expect(recreated).toEqual({ name: '-Test' })
+    const leftoverApostrophe = sqlite
+      .prepare('SELECT name FROM exchanges WHERE name = ?')
+      .get("'-Test")
+    expect(leftoverApostrophe).toBeUndefined()
   })
 })
