@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { authMiddleware } from './middleware/auth.ts'
 import { authRoute } from './routes/auth.ts'
+import { backupRoute } from './routes/backup.ts'
 import { coinsRoute } from './routes/coins.ts'
 import { exchangesRoute } from './routes/exchanges.ts'
 import { irReportRoute } from './routes/irReport.ts'
@@ -35,6 +36,7 @@ app.route('/api/auth', authRoute) // /setup, /login, /logout, /status
 app.use('/api/*', authMiddleware)
 
 // --- PROTECTED ---
+app.route('/api/backup', backupRoute)
 app.route('/api/coins', coinsRoute)
 app.route('/api/exchanges', exchangesRoute)
 app.route('/api/ir-report', irReportRoute)

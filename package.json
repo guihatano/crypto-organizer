@@ -24,6 +24,8 @@
     "@tanstack/react-query": "^5.101.2",
     "argon2": "^0.45.0",
     "better-sqlite3": "~12.3.0",
+    "csv-parse": "^7.0.1",
+    "csv-stringify": "^6.8.1",
     "decimal.js": "^10.6.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.28",
