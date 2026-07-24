@@ -128,3 +128,71 @@ export function findLedgerNegativePoint(ledger: Transaction[]): NegativePoint | 
 
   return null
 }
+
+/**
+ * One not-yet-inserted CSV import row, scoped to a single coin (the Map
+ * key in validateImportBatch's batchByCoin).
+ */
+export interface ImportBatchCandidate {
+  line: number
+  date: string
+  type: 'buy' | 'sell'
+  quantity: string
+}
+
+/**
+ * Validates a whole CSV import batch against each touched coin's existing
+ * ledger, replaying the SAME negative-position invariant
+ * findLedgerNegativePoint already enforces for direct POST
+ * /transactions/sell (T-06-06, BACKUP-04) — import must never be a weaker
+ * path than manual entry.
+ *
+ * Each batch row is assigned a synthetic createdAt of "now + its index in
+ * milliseconds" (RESEARCH.md Pattern 4): every batch row therefore sorts
+ * after every existing row sharing the same date, and ties among batch
+ * rows on the same date preserve file order — making the result invariant
+ * to the CSV's row order (BACKUP-02 shuffle-invariance truth).
+ *
+ * PURE aside from one Date.now() read. Does no I/O itself — callers
+ * assemble batchByCoin/existingByCoin from already-fetched data. Returns
+ * only the FIRST violation found: the caller rejects the entire import on
+ * any single violation (all-or-nothing, BACKUP-04), so which one is
+ * reported first doesn't change the outcome, only the error message.
+ */
+export function validateImportBatch(
+  batchByCoin: Map<number, ImportBatchCandidate[]>,
+  existingByCoin: Map<number, Transaction[]>,
+): { line: number; reason: string } | null {
+  const runMs = Date.now()
+
+  for (const [coinId, batchRows] of batchByCoin) {
+    const synthetic: Transaction[] = batchRows.map((row, i) => ({
+      id: `import-${coinId}-${i}`,
+      date: row.date,
+      type: row.type,
+      coinId,
+      quantity: row.quantity,
+      // Inert placeholders — findLedgerNegativePoint never reads these two
+      // fields, only date/createdAt/type/quantity.
+      valueBrl: '0',
+      feeBrl: '0',
+      createdAt: new Date(runMs + i).toISOString(),
+    }))
+
+    const ledger = [...(existingByCoin.get(coinId) ?? []), ...synthetic]
+    const negative = findLedgerNegativePoint(ledger)
+    if (!negative) continue
+
+    // Attribute the violation to the last batch row on/before the
+    // negative-crossing date for this coin (RESEARCH.md Open Question 1 —
+    // an accepted heuristic; findLedgerNegativePoint itself only returns a
+    // date, not a row identity).
+    const offender = [...batchRows].reverse().find((row) => row.date <= negative.date)
+    return {
+      line: offender?.line ?? batchRows[0].line,
+      reason: `Esta transação deixaria a posição negativa em ${negative.date}.`,
+    }
+  }
+
+  return null
+}
