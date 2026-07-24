@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Download, RefreshCw } from 'lucide-react'
-import type { TransactionListItem } from './api/client.ts'
-import { usePrices, useTransactionsList } from './hooks/useTransactions.ts'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Check, Download, Loader2, RefreshCw, Upload, X } from 'lucide-react'
+import { ApiError, type ImportBackupRowError, type TransactionListItem } from './api/client.ts'
+import { ImportError, useImportBackup, usePrices, useTransactionsList } from './hooks/useTransactions.ts'
 import { useAuthStatus } from './hooks/useAuth.ts'
 import { PositionTable } from './components/PositionTable.tsx'
 import { SummaryCards } from './components/SummaryCards.tsx'
@@ -40,6 +40,44 @@ function formatUpdatedAgo(fetchedAt: string | null): string {
   if (diffMin < 60) return `Atualizado há ${diffMin} min`
   return `Atualizado há ${Math.floor(diffMin / 60)} h`
 }
+
+// D-11/UI-SPEC Copywriting Contract pluralization rule: singular exactly
+// at count 1, plural for 0 and >=2.
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural
+}
+
+function buildImportSuccessSummary(imported: number, duplicatesSkipped: number): string {
+  if (imported === 0 && duplicatesSkipped > 0) {
+    return `Nenhuma transação nova — todas as ${duplicatesSkipped} linhas já existiam (duplicadas).`
+  }
+  const txWord = pluralize(imported, 'transação', 'transações')
+  const importedWord = pluralize(imported, 'importada', 'importadas')
+  const dupWord = pluralize(duplicatesSkipped, 'duplicada', 'duplicadas')
+  const ignoredWord = pluralize(duplicatesSkipped, 'ignorada', 'ignoradas')
+  return `${imported} ${txWord} ${importedWord}, ${duplicatesSkipped} ${dupWord} ${ignoredWord}.`
+}
+
+function buildNewExchangesSentence(newExchanges: string[]): string | null {
+  if (newExchanges.length === 0) return null
+  const noun = pluralize(newExchanges.length, 'exchange nova criada', 'exchanges novas criadas')
+  return `${newExchanges.length} ${noun}: ${newExchanges.join(', ')}.`
+}
+
+function buildImportRejectionSummary(rows: ImportBackupRowError[]): string {
+  const noun = pluralize(rows.length, 'erro encontrado', 'erros encontrados')
+  return `${rows.length} ${noun}. Nenhuma transação foi importada — corrija o arquivo e tente novamente.`
+}
+
+/**
+ * Owned at App level (not local to EmptyState/History) so it survives the
+ * EmptyState -> History view flip a successful zero-transactions import
+ * triggers (UI-SPEC Component Notes "Result panel ownership").
+ */
+type ImportResultState =
+  | { kind: 'success'; summary: string; newExchangesSentence: string | null }
+  | { kind: 'error-rows'; summary: string; rows: ImportBackupRowError[] }
+  | { kind: 'error-message'; message: string }
 
 /**
  * The auth-status-driven shell (D-05): renders exactly one of
@@ -90,6 +128,9 @@ function AuthenticatedApp() {
   const [editingTransaction, setEditingTransaction] = useState<TransactionListItem | null>(null)
   const [currency, setCurrency] = useState<'BRL' | 'USD'>(readStoredCurrency)
   const [view, setView] = useState<AppView>('dashboard')
+  const [importResult, setImportResult] = useState<ImportResultState | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const importBackup = useImportBackup()
 
   useEffect(() => {
     localStorage.setItem(CURRENCY_STORAGE_KEY, currency)
@@ -127,8 +168,55 @@ function AuthenticatedApp() {
     setEditingTransaction(null)
   }
 
+  function openFilePicker() {
+    fileInputRef.current?.click()
+  }
+
+  function handleImportError(err: unknown) {
+    if (err instanceof ImportError && err.rows && err.rows.length > 0) {
+      setImportResult({
+        kind: 'error-rows',
+        summary: buildImportRejectionSummary(err.rows),
+        rows: err.rows,
+      })
+      return
+    }
+    const message =
+      err instanceof ApiError ? err.message : 'Não foi possível conectar ao servidor. Tente novamente.'
+    setImportResult({ kind: 'error-message', message })
+  }
+
+  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file next time
+    if (!file) return
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setImportResult({ kind: 'error-message', message: 'Selecione um arquivo .csv.' })
+      return
+    }
+
+    importBackup.mutate(file, {
+      onSuccess: (result) => {
+        setImportResult({
+          kind: 'success',
+          summary: buildImportSuccessSummary(result.imported, result.duplicates_skipped),
+          newExchangesSentence: buildNewExchangesSentence(result.new_exchanges),
+        })
+      },
+      onError: handleImportError,
+    })
+  }
+
   return (
     <div className="min-h-svh bg-(--color-bg)">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        className="sr-only"
+        onChange={handleFileInputChange}
+      />
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-(--color-border) px-4 py-4 sm:px-6">
         <h1 className="text-xl font-semibold text-(--color-text) sm:text-2xl">Crypto Organizer</h1>
         <div className="flex flex-wrap items-center gap-3">
@@ -170,6 +258,57 @@ function AuthenticatedApp() {
       </header>
 
       <main className="mx-auto max-w-5xl space-y-10 px-4 py-6 sm:px-6 sm:py-8">
+        {importResult && (
+          <div
+            role={importResult.kind === 'success' ? 'status' : 'alert'}
+            aria-live={importResult.kind === 'success' ? 'polite' : 'assertive'}
+            className="relative rounded-lg border border-(--color-border) bg-(--color-surface) p-4"
+          >
+            <button
+              type="button"
+              onClick={() => setImportResult(null)}
+              aria-label={importResult.kind === 'success' ? 'Fechar resumo' : 'Fechar erro'}
+              className="absolute top-3 right-3 cursor-pointer rounded-md p-1.5 text-(--color-text-muted) hover:bg-(--color-surface-hover)"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {importResult.kind === 'success' ? (
+              <>
+                <p className="flex items-center gap-1.5 pr-8 text-sm font-semibold text-(--color-text)">
+                  <Check className="h-4 w-4 text-(--color-profit)" />
+                  Import concluído
+                </p>
+                <p className="mt-1 pr-8 text-sm text-(--color-text-muted)">
+                  <span className="text-(--color-profit)">{importResult.summary}</span>
+                  {importResult.newExchangesSentence && <> {importResult.newExchangesSentence}</>}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="flex items-center gap-1.5 pr-8 text-sm font-semibold text-(--color-destructive)">
+                  <AlertTriangle className="h-4 w-4" />
+                  Import não aplicado
+                </p>
+                {importResult.kind === 'error-rows' ? (
+                  <>
+                    <p className="mt-1 pr-8 text-sm text-(--color-text-muted)">{importResult.summary}</p>
+                    <ul className="mt-2 max-h-72 list-disc space-y-1 overflow-y-auto pl-5 text-sm text-(--color-destructive)">
+                      {importResult.rows.map((row) => (
+                        <li key={row.line}>
+                          Linha {row.line}: {row.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="mt-1 pr-8 text-sm text-(--color-text-muted)">{importResult.message}</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {view === 'ir-report' && hasTransactions ? (
           // The IR report is not gated on usePrices (portfolio) — cost/IR
           // data is isolated from the price layer and must render even
@@ -186,7 +325,7 @@ function AuthenticatedApp() {
             )}
 
             {!isLoading && !isError && !hasTransactions && (
-              <EmptyState onCreateFirst={openNewTransaction} />
+              <EmptyState onCreateFirst={openNewTransaction} onImportClick={openFilePicker} />
             )}
 
             {!isLoading && !isError && hasTransactions && portfolio && (
@@ -210,20 +349,40 @@ function AuthenticatedApp() {
                     <h2 id="history-heading" className="text-lg font-medium text-(--color-text)">
                       Histórico de transações
                     </h2>
-                    {/* D-10: export control lives inside the History toolbar.
-                        Plain same-origin cookie-authenticated <a download> —
-                        not fetch/blob, not apiClient (RESEARCH.md Export
-                        mechanics). Import trigger is added in 06-02. */}
-                    <a
-                      href="/api/backup/export.csv"
-                      download
-                      className="cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium text-(--color-text-muted) hover:bg-(--color-surface-hover) disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Download className="h-4 w-4" />
-                        Exportar CSV
-                      </span>
-                    </a>
+                    {/* D-10: export/import controls live inside the History
+                        toolbar. Export is a plain same-origin
+                        cookie-authenticated <a download> — not fetch/blob,
+                        not apiClient (RESEARCH.md Export mechanics). Import
+                        stays enabled here even while an import is pending —
+                        read-only GET, no write conflict. */}
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href="/api/backup/export.csv"
+                        download
+                        className="cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium text-(--color-text-muted) hover:bg-(--color-surface-hover) disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Download className="h-4 w-4" />
+                          Exportar CSV
+                        </span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={openFilePicker}
+                        disabled={importBackup.isPending}
+                        aria-busy={importBackup.isPending}
+                        className="cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium text-(--color-text-muted) hover:bg-(--color-surface-hover) disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {importBackup.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4" />
+                          )}
+                          {importBackup.isPending ? 'Importando...' : 'Importar CSV'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto rounded-lg border border-(--color-border) p-4">
                     <TransactionHistory

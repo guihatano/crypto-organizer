@@ -21,6 +21,19 @@ export function registerUnauthorizedHandler(fn: () => void): void {
   unauthorizedHandler = fn
 }
 
+/**
+ * Same global-401 trigger `request()` applies below, exposed for callers
+ * that can't go through `request()` itself — e.g. useImportBackup's raw
+ * `fetch` + `FormData` upload, which can't use apiClient (it hardcodes
+ * `Content-Type: application/json`, which would break the multipart
+ * boundary).
+ */
+export function notifyUnauthorized(status: number, path: string): void {
+  if (status === 401 && !path.startsWith('/auth/')) {
+    unauthorizedHandler?.()
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -173,4 +186,18 @@ export interface IrReportYearsResponse {
 export interface AuthStatus {
   setup_required: boolean
   authenticated: boolean
+}
+
+// Phase 6 — CSV backup import (BACKUP-02..05). Every count is a plain
+// integer, already atomic/all-or-nothing on the server; new_exchanges
+// lists the names auto-created during this import (D-02).
+export interface ImportBackupResult {
+  imported: number
+  duplicates_skipped: number
+  new_exchanges: string[]
+}
+
+export interface ImportBackupRowError {
+  line: number
+  reason: string
 }

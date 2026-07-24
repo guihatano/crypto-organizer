@@ -1,16 +1,36 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ApiError,
   apiClient,
+  notifyUnauthorized,
   type Coin,
   type CreateTransactionInput,
   type CreateTransactionResponse,
   type Exchange,
+  type ImportBackupResult,
+  type ImportBackupRowError,
   type IrReportResponse,
   type IrReportYearsResponse,
   type PortfolioResponse,
   type Position,
   type TransactionListItem,
 } from '../api/client.ts'
+
+/**
+ * Thrown by useImportBackup on a non-ok response. Extends ApiError (so
+ * existing `err instanceof ApiError` fallbacks still work) and additionally
+ * carries the per-row error list when the server rejected the batch with
+ * BACKUP-04's `{ errors: [{ line, reason }] }` shape — the malformed-file
+ * and network-failure cases leave `rows` undefined (single-message only).
+ */
+export class ImportError extends ApiError {
+  rows?: ImportBackupRowError[]
+  constructor(status: number, message: string, rows?: ImportBackupRowError[]) {
+    super(status, message)
+    this.name = 'ImportError'
+    this.rows = rows
+  }
+}
 
 export interface CreateCoinInput {
   symbol: string
@@ -246,5 +266,53 @@ export function useIrReport(year: number | null) {
     queryKey: ['ir-report', year],
     queryFn: () => apiClient.get<IrReportResponse>(`/ir-report?year=${year}`),
     enabled: year !== null,
+  })
+}
+
+/**
+ * Imports a previously-exported CSV backup (BACKUP-02..05). Raw
+ * `fetch` + `FormData` — deliberately NOT apiClient, which hardcodes
+ * `Content-Type: application/json` + `JSON.stringify` and would break the
+ * multipart boundary the browser needs to set for a file upload (no
+ * Content-Type header is set here on purpose). On success invalidates the
+ * same query keys useDeleteTransaction does, so positions/prices/history/
+ * IR report all refetch without a manual reload.
+ */
+export function useImportBackup() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (file: File): Promise<ImportBackupResult> => {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/backup/import', { method: 'POST', body: formData })
+      const body: unknown = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        notifyUnauthorized(res.status, '/backup/import')
+
+        const rows =
+          body && typeof body === 'object' && Array.isArray((body as { errors?: unknown }).errors)
+            ? (body as { errors: ImportBackupRowError[] }).errors
+            : undefined
+        const message =
+          (body && typeof body === 'object' && 'error' in body
+            ? (body as { error?: unknown }).error
+            : undefined) ??
+          (rows ? `${rows.length} erro(s) encontrado(s).` : res.statusText)
+
+        throw new ImportError(res.status, String(message), rows)
+      }
+
+      return body as ImportBackupResult
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['positions'] })
+      queryClient.invalidateQueries({ queryKey: ['prices'] })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report'] })
+      queryClient.invalidateQueries({ queryKey: ['ir-report-years'] })
+    },
   })
 }

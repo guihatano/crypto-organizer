@@ -1,12 +1,19 @@
 interface EmptyStateProps {
   onCreateFirst: () => void
+  /**
+   * Opens the same file picker as the History toolbar's "Importar CSV"
+   * trigger (BACKUP-02 reachability, D-10): at zero transactions the
+   * History section doesn't mount, so without this link a wiped DB would
+   * have no path back to a CSV backup.
+   */
+  onImportClick: () => void
 }
 
 /**
  * Friendly empty state (D-13): shown instead of the tables when there are
  * zero transactions — no placeholder rows.
  */
-export function EmptyState({ onCreateFirst }: EmptyStateProps) {
+export function EmptyState({ onCreateFirst, onImportClick }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-(--color-border) px-6 py-16 text-center">
       <p className="text-lg font-medium text-(--color-text)">
@@ -23,6 +30,16 @@ export function EmptyState({ onCreateFirst }: EmptyStateProps) {
       >
         Lançar primeira transação
       </button>
+      <p className="mt-4 text-sm text-(--color-text-muted)">
+        ou{' '}
+        <button
+          type="button"
+          onClick={onImportClick}
+          className="cursor-pointer font-medium text-(--color-text) underline hover:no-underline"
+        >
+          importe um backup CSV
+        </button>
+      </p>
     </div>
   )
 }
