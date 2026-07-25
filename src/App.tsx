@@ -24,7 +24,14 @@ const CURRENCY_STORAGE_KEY = 'currency'
  * anything else) falls back to the D-06 default of USD on first load.
  */
 function readStoredCurrency(): 'BRL' | 'USD' {
-  return localStorage.getItem(CURRENCY_STORAGE_KEY) === 'BRL' ? 'BRL' : 'USD'
+  // localStorage.getItem can throw (Safari private mode, storage disabled by
+  // policy/extension) — guarded like readStoredTheme so it never crashes the
+  // app shell on mount. Falls back to the D-06 default of USD.
+  try {
+    return localStorage.getItem(CURRENCY_STORAGE_KEY) === 'BRL' ? 'BRL' : 'USD'
+  } catch {
+    return 'USD'
+  }
 }
 
 /**
@@ -133,7 +140,13 @@ function AuthenticatedApp() {
   const importBackup = useImportBackup()
 
   useEffect(() => {
-    localStorage.setItem(CURRENCY_STORAGE_KEY, currency)
+    // Guarded like readStoredCurrency: setItem can throw (private mode / quota)
+    // and must not tear down the render.
+    try {
+      localStorage.setItem(CURRENCY_STORAGE_KEY, currency)
+    } catch {
+      // Preference simply won't persist this session — non-fatal.
+    }
   }, [currency])
 
   const {

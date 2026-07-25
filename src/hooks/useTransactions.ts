@@ -311,6 +311,9 @@ export function useImportBackup() {
       queryClient.invalidateQueries({ queryKey: ['positions'] })
       queryClient.invalidateQueries({ queryKey: ['prices'] })
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      // An import can auto-create exchanges (new_exchanges) — refresh the
+      // exchange list so they show up in dropdowns/Cadastros without a reload.
+      queryClient.invalidateQueries({ queryKey: ['exchanges'] })
       queryClient.invalidateQueries({ queryKey: ['ir-report'] })
       queryClient.invalidateQueries({ queryKey: ['ir-report-years'] })
     },
