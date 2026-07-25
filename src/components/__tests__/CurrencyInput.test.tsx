@@ -85,3 +85,29 @@ describe('CurrencyInput — USDT auto-calc wiring (regression for missing onChan
     expect(onChangeBrl).toHaveBeenLastCalledWith('999.9')
   })
 })
+
+describe('CurrencyInput — edit-mode prefill (regression for blank-screen crash)', () => {
+  it('does not crash when initialBrl is an empty string (stale prefill on first edit render)', () => {
+    const onChangeBrl = vi.fn()
+    // new Decimal('') throws; with no error boundary above, an uncaught throw
+    // here blanked the entire app when editing a buy transaction.
+    expect(() =>
+      renderWithClient(
+        <CurrencyInput id="tx-value" date="2026-07-01" initialBrl="" onChangeBrl={onChangeBrl} />,
+      ),
+    ).not.toThrow()
+    const brlInput = screen.getByLabelText(/Valor total/) as HTMLInputElement
+    expect(brlInput.value).toBe('')
+    expect(onChangeBrl).not.toHaveBeenCalled()
+  })
+
+  it('prefills the BRL display and emits the normalized value from a valid initialBrl', () => {
+    const onChangeBrl = vi.fn()
+    renderWithClient(
+      <CurrencyInput id="tx-value" date="2026-07-01" initialBrl="1500.00" onChangeBrl={onChangeBrl} />,
+    )
+    const brlInput = screen.getByLabelText(/Valor total/) as HTMLInputElement
+    expect(brlInput.value).toBe('1.500,00')
+    expect(onChangeBrl).toHaveBeenCalledWith('1500')
+  })
+})

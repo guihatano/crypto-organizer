@@ -272,7 +272,12 @@ export function TransactionForm({ open, onClose, editingTransaction }: Transacti
                   key={editingTransaction?.id ?? 'new'}
                   id="tx-value"
                   date={date}
-                  initialBrl={isEditing ? valueBrl : undefined}
+                  // Source the prefill directly from the transaction (available
+                  // synchronously on the first edit render). Reading `valueBrl`
+                  // state here would pass '' — the prefill effect that fills it
+                  // runs AFTER mount, and CurrencyInput only reads initialBrl on
+                  // mount — which both crashed (new Decimal('')) and lost the value.
+                  initialBrl={editingTransaction?.type === 'buy' ? editingTransaction.value_brl : undefined}
                   onChangeBrl={setValueBrl}
                 />
               </div>

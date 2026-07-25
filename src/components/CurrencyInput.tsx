@@ -59,8 +59,15 @@ export function CurrencyInput({ id, date, initialBrl, onChangeBrl }: CurrencyInp
   // transaction is being edited, so this only ever fires once per edit
   // target.
   useEffect(() => {
-    if (initialBrl != null) {
-      onChangeBrl(new Decimal(initialBrl).toString())
+    // Guard against an empty/invalid prefill: new Decimal('') THROWS, and an
+    // uncaught throw here has no error boundary above it — it blanks the whole
+    // app. An empty or unparseable value simply leaves the field empty.
+    if (initialBrl != null && initialBrl !== '') {
+      try {
+        onChangeBrl(new Decimal(initialBrl).toString())
+      } catch {
+        // Not a parseable decimal — skip; field stays empty rather than crash.
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
