@@ -54,15 +54,15 @@ backupRoute.get('/export.csv', (c) => {
   const csvRows = rows.map((row) => ({
     data: row.date, // ISO YYYY-MM-DD, D-05 — verbatim
     tipo: row.type === 'buy' ? 'compra' : 'venda', // D-07 translation
-    moeda: row.coinSymbol, // business key, never coinId (BACKUP-01)
+    moeda: escapeLeadingApostrophe(row.coinSymbol), // business key, never coinId (BACKUP-01)
     // Raw DB TEXT verbatim — NEVER re-serialized through Decimal.js, which
     // strips trailing zeros/the decimal point (D-04):
     // new Decimal('1500.00').toString() === '1500'.
     quantidade: row.quantity,
     valor_brl: row.valueBrl,
     taxa_brl: row.feeBrl,
-    exchange: row.exchangeName ?? '', // D-09: null -> empty string
-    origem: row.origin, // D-08: raw, never translated
+    exchange: escapeLeadingApostrophe(row.exchangeName ?? ''), // D-09: null -> empty string
+    origem: escapeLeadingApostrophe(row.origin), // D-08: raw, never translated
   }))
 
   const csv = stringify(csvRows, {
@@ -94,16 +94,34 @@ const TIPO_IMPORT: Record<string, 'buy' | 'sell'> = { compra: 'buy', venda: 'sel
 // csv-parse has no symmetric un-escaping, so a re-imported cell must be
 // manually un-prefixed before use as a business key, or repeated
 // export->import cycles silently mint duplicate exchanges (RESEARCH.md
-// Pitfall 1). Applied defensively to both `moeda` and `exchange` — only
-// `exchange` has a realistic exploit path today, but the cost of covering
-// `moeda` too is zero.
+// Pitfall 1). Applied to every unescaped business-key cell — `moeda`,
+// `exchange` and `origem` — mirroring escape_formulas, which is
+// stringifier-wide (every column), so decode stays symmetric with encode.
 const FORMULA_PREFIX_TRIGGERS = new Set(['=', '+', '-', '@', '\t', '\r'])
 
+// Inverse of escapeLeadingApostrophe (below), applied on import. A leading
+// apostrophe is stripped in exactly two lossless cases so a genuine name
+// that itself starts with "'" round-trips distinctly from the OWASP escape
+// marker (WR-01):
+//   - `''X`  -> `'X`   (our doubled-apostrophe encoding of a real leading ')
+//   - `'=X`  -> `=X`   (escape_formulas' OWASP prefix; ' + a trigger char)
+// A single leading apostrophe followed by any other char is a genuine name
+// and is left untouched.
 function unescapeFormulaPrefix(cell: string): string {
-  if (cell.length > 1 && cell[0] === "'" && FORMULA_PREFIX_TRIGGERS.has(cell[1])) {
+  if (cell.length > 1 && cell[0] === "'" && (cell[1] === "'" || FORMULA_PREFIX_TRIGGERS.has(cell[1]))) {
     return cell.slice(1)
   }
   return cell
+}
+
+// Export-side counterpart to unescapeFormulaPrefix. escape_formulas only
+// guards cells that START with a trigger char; a business-key name that
+// genuinely begins with "'" would pass through verbatim and then be
+// mis-stripped on reimport, silently renaming an exchange and splitting its
+// history. Doubling the leading apostrophe makes that case round-trip
+// distinctly from the OWASP escape marker (WR-01).
+function escapeLeadingApostrophe(cell: string): string {
+  return cell.startsWith("'") ? "'" + cell : cell
 }
 
 function findCoinIdBySymbol(symbol: string): number | null {
@@ -148,9 +166,14 @@ interface ValidatedImportRow {
  * The 8-field business key (date, type, coin, quantity, value, fee,
  * exchange, origin), decimal-normalized on the three numeric fields so a
  * hand-edited/re-saved CSV cell like "1500.00" still dedupes against a
- * stored "1500" (Pitfall 4). exchangeId null (D-09) is a distinct key
- * component from any real id, so a no-exchange row only ever dedupes
- * against another no-exchange row.
+ * stored "1500" (Pitfall 4).
+ *
+ * The exchange dimension is three-way, NOT just id-or-null: an unresolved
+ * (null) exchangeId is ambiguous between a genuine no-exchange row (D-09)
+ * and a row naming a brand-new exchange whose id is only assigned inside
+ * the write transaction. The pending case is keyed on `pending:<name>` so
+ * those two cases — and two distinct pending names in the same batch —
+ * never collapse to the same key and silently drop a legitimate row.
  */
 function buildDedupeKey(row: {
   date: string
@@ -160,8 +183,18 @@ function buildDedupeKey(row: {
   valueBrl: string
   feeBrl: string
   exchangeId: number | null
+  // Only meaningful when exchangeId is null (pending auto-create). Existing
+  // DB rows pass null here — a null exchangeId there is always genuine D-09.
+  exchangeName?: string | null
   origin: string
 }): string {
+  const exchangeKeyPart =
+    row.exchangeId != null
+      ? String(row.exchangeId)
+      : row.exchangeName
+        ? `pending:${row.exchangeName}`
+        : 'null'
+
   return [
     row.date,
     row.type,
@@ -169,7 +202,7 @@ function buildDedupeKey(row: {
     toDecimal(row.quantity).toString(),
     toDecimal(row.valueBrl).toString(),
     toDecimal(row.feeBrl).toString(),
-    row.exchangeId ?? 'null',
+    exchangeKeyPart,
     row.origin,
   ].join('|')
 }
@@ -251,7 +284,11 @@ backupRoute.post('/import', async (c) => {
     const quantity = (record.quantidade ?? '').trim()
     const valueBrl = (record.valor_brl ?? '').trim()
     const feeBrl = (record.taxa_brl ?? '').trim()
-    const origin = (record.origem ?? '').trim()
+    // Unescaped like moeda/exchange: escape_formulas on export is
+    // stringifier-wide (every cell, origem included), so a future origin
+    // value starting with a trigger char would otherwise carry a stray
+    // leading apostrophe into the dedupe key and break round-trip dedup.
+    const origin = unescapeFormulaPrefix((record.origem ?? '').trim())
 
     let qtyDecimal
     try {
@@ -363,6 +400,7 @@ backupRoute.post('/import', async (c) => {
       valueBrl: row.valueBrl,
       feeBrl: row.feeBrl,
       exchangeId: row.exchangeId,
+      exchangeName: row.exchangeName,
       origin: row.origin,
     })
     if (existingKeys.has(key) || batchKeys.has(key)) {

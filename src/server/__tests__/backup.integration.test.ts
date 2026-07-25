@@ -457,4 +457,83 @@ describe('POST /api/backup/import', () => {
       .get("'-Test")
     expect(leftoverApostrophe).toBeUndefined()
   })
+
+  it('does NOT dedupe a brand-new-exchange row against an existing no-exchange row (CR-01a)', async () => {
+    const { coinId } = seedFixture()
+    // Existing no-exchange tx matching every non-exchange field of the CSV row.
+    insertTransaction({
+      date: '2026-01-01',
+      type: 'buy',
+      coinId,
+      quantity: '1',
+      valueBrl: '100',
+      feeBrl: '0',
+      exchangeId: null,
+    })
+
+    // Row names a not-yet-existing exchange: exchangeId is null at dedupe
+    // time, but it is NOT the same as the no-exchange row above.
+    const csv = `${EXPORT_HEADER}\n2026-01-01;compra;BTC;1;100;0;NomeNovo;manual\n`
+    const countBefore = countTransactions()
+    const { status, body } = await postImport(csv)
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ imported: 1, duplicates_skipped: 0, new_exchanges: ['NomeNovo'] })
+    expect(countTransactions()).toBe(countBefore + 1)
+    expect(sqlite.prepare('SELECT id FROM exchanges WHERE name = ?').get('NomeNovo')).toBeTruthy()
+  })
+
+  it('does NOT collide two distinct brand-new exchanges in the same batch (CR-01b)', async () => {
+    seedFixture()
+    // Same date/type/coin/qty/value/fee/origin, differing ONLY by a new
+    // exchange name — the old key folded both to "null" and dropped one.
+    const csv =
+      `${EXPORT_HEADER}\n` +
+      '2026-01-01;compra;BTC;1;100;0;ExchangeA;manual\n' +
+      '2026-01-01;compra;BTC;1;100;0;ExchangeB;manual\n'
+
+    const { status, body } = await postImport(csv)
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ imported: 2, duplicates_skipped: 0, new_exchanges: ['ExchangeA', 'ExchangeB'] })
+    expect(sqlite.prepare('SELECT id FROM exchanges WHERE name = ?').get('ExchangeA')).toBeTruthy()
+    expect(sqlite.prepare('SELECT id FROM exchanges WHERE name = ?').get('ExchangeB')).toBeTruthy()
+  })
+
+  it('round-trips an exchange name that genuinely starts with an apostrophe (WR-01)', async () => {
+    const { coinId } = seedFixture()
+    // Apostrophe + a formula-trigger char: the ambiguous case the doubled-
+    // apostrophe encoding exists to disambiguate.
+    const realName = "'-Test"
+    const genuineApostropheId = seedExchange(realName)
+    seedTransaction({
+      date: '2026-01-01',
+      type: 'buy',
+      coinId,
+      quantity: '1',
+      valueBrl: '100.00',
+      feeBrl: '0',
+      exchangeId: genuineApostropheId,
+    })
+
+    const { text: exportedCsv } = await getExportCsv()
+    // Export doubles the leading apostrophe so reimport can tell it apart
+    // from the OWASP single-apostrophe escape marker.
+    expect(exportedCsv).toContain("''-Test")
+
+    resetTestDb()
+    seedFixture()
+    const session = await seedAuthedSession()
+    cookieHeader = session.cookieHeader
+
+    const { status, body } = await postImport(exportedCsv)
+
+    expect(status).toBe(200)
+    // Recreated with the apostrophe intact — NOT stripped to "-Test".
+    expect(body).toMatchObject({ new_exchanges: [realName] })
+    expect(sqlite.prepare('SELECT name FROM exchanges WHERE name = ?').get(realName)).toEqual({
+      name: realName,
+    })
+    expect(sqlite.prepare('SELECT name FROM exchanges WHERE name = ?').get('-Test')).toBeUndefined()
+  })
 })
